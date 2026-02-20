@@ -1,9 +1,9 @@
 # MyChat
 
 <p align="center">
-  <img src="https://img.shields.io/badge/React%20Native-0.79.2-blue?logo=react" alt="React Native">
+  <img src="https://img.shields.io/badge/React%20Native-0.81.5-blue?logo=react" alt="React Native">
   <img src="https://img.shields.io/badge/Expo-54.0.0-black?logo=expo" alt="Expo">
-  <img src="https://img.shields.io/badge/TypeScript-5.3.3-blue?logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/TypeScript-5.9.2-blue?logo=typescript" alt="TypeScript">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
 
@@ -105,6 +105,11 @@ OLLAMA_ORIGINS="*" ollama serve
 ```
 mychat/
 ├── App.tsx                    # 应用入口
+├── assets/                    # 资源文件
+│   ├── icon.png
+│   ├── adaptive-icon.png
+│   ├── splash-icon.png
+│   └── favicon.png
 ├── src/
 │   ├── components/            # UI 组件
 │   │   ├── ChatInput.tsx      # 聊天输入框
@@ -125,6 +130,11 @@ mychat/
 │   ├── theme/                 # 主题样式
 │   ├── types/                 # TypeScript 类型
 │   └── utils/                 # 工具函数
+├── .github/
+│   └── workflows/
+│       └── build.yml          # GitHub Actions
+├── app.json                   # Expo 配置
+├── eas.json                   # EAS Build 配置
 └── package.json
 ```
 
@@ -132,8 +142,8 @@ mychat/
 
 | 类别 | 技术 |
 |------|------|
-| 框架 | React Native + Expo |
-| 语言 | TypeScript |
+| 框架 | React Native 0.81.5 + Expo 54 |
+| 语言 | TypeScript 5.9 |
 | 导航 | React Navigation 7 |
 | 存储 | AsyncStorage |
 | Web | react-native-web |
@@ -166,7 +176,7 @@ mychat/
 npm run build:web
 ```
 
-产物位于 `web-build/` 目录。
+产物位于 `dist/` 目录。
 
 #### 原生应用
 
@@ -179,11 +189,14 @@ npm install -g eas-cli
 # 登录
 eas login
 
-# 构建 APK (Android)
-eas build --platform android --profile production
+# 初始化项目
+eas init
 
-# 构建 iOS
-eas build --platform ios --profile production
+# 构建 APK (Android)
+eas build --platform android --profile preview
+
+# 构建 iOS 模拟器版本
+eas build --platform ios --profile preview
 ```
 
 ## 🤝 贡献
