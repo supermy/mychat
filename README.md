@@ -140,7 +140,27 @@ mychat/
 
 ## 📦 构建
 
-### Web
+### GitHub Actions 自动构建
+
+项目配置了 GitHub Actions 自动构建：
+
+1. 在 GitHub 仓库设置中添加 `EXPO_TOKEN` secret：
+   - 访问 https://expo.dev/settings/access-tokens
+   - 创建新的 Access Token
+   - 在 GitHub 仓库 → Settings → Secrets → Actions 中添加 `EXPO_TOKEN`
+
+2. 推送代码或创建 tag 自动触发构建：
+   ```bash
+   # 创建发布版本
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+3. 或手动触发：Actions → EAS Build → Run workflow
+
+### 本地构建
+
+#### Web
 
 ```bash
 npm run build:web
@@ -148,7 +168,7 @@ npm run build:web
 
 产物位于 `web-build/` 目录。
 
-### 原生应用
+#### 原生应用
 
 使用 [EAS Build](https://docs.expo.dev/build/introduction/)：
 
@@ -159,9 +179,11 @@ npm install -g eas-cli
 # 登录
 eas login
 
-# 构建
-eas build --platform ios
-eas build --platform android
+# 构建 APK (Android)
+eas build --platform android --profile production
+
+# 构建 iOS
+eas build --platform ios --profile production
 ```
 
 ## 🤝 贡献
