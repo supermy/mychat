@@ -29,8 +29,9 @@
     "plugins": [],
     "extra": {
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "9010ef90-28c1-459f-a3bf-6abbe3fc9fae"
       }
-    }
+    },
+    "owner": "tiger6"
   }
 }
