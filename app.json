@@ -4,18 +4,29 @@
     "slug": "mychat",
     "version": "1.0.0",
     "orientation": "default",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mychat.app"
     },
     "android": {
-      "package": "com.mychat.app"
+      "package": "com.mychat.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "web": {
       "bundler": "metro",
       "output": "single",
+      "favicon": "./assets/favicon.png",
       "name": "MyChat",
       "shortName": "MyChat",
       "description": "AI聊天应用 - 支持本地llama.cpp推理",
@@ -26,11 +37,6 @@
       "startUrl": "/",
       "lang": "zh-CN"
     },
-    "plugins": [],
-    "extra": {
-      "eas": {
-        "projectId": "9010ef90-28c1-459f-a3bf-6abbe3fc9fae"
-      }
-    }
+    "plugins": []
   }
 }
