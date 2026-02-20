@@ -26,6 +26,11 @@
       "startUrl": "/",
       "lang": "zh-CN"
     },
-    "plugins": []
+    "plugins": [],
+    "extra": {
+      "eas": {
+        "projectId": "9010ef90-28c1-459f-a3bf-6abbe3fc9fae"
+      }
+    }
   }
 }
