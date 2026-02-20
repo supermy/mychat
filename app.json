@@ -26,6 +26,11 @@
       "startUrl": "/",
       "lang": "zh-CN"
     },
-    "plugins": []
+    "plugins": [],
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    }
   }
 }

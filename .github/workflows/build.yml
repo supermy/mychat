@@ -6,28 +6,22 @@ on:
       - main
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
-    inputs:
-      platform:
-        description: 'Platform to build'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-          - all
-          - ios
-          - android
 
 jobs:
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        platform: [ios, android]
+        include:
+          - platform: android
+            profile: preview
+          - platform: ios
+            profile: preview
+          - platform: web
+            profile: production
     
     steps:
       - name: 📥 Checkout
@@ -49,34 +43,6 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: 🚀 Build for ${{ matrix.platform }}
-        run: eas build --platform ${{ matrix.platform }} --non-interactive --wait
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
-  build-web:
-    name: Build Web
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-
-      - name: 🏗️ Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: 📦 Install dependencies
-        run: npm ci
-
-      - name: 🏗️ Setup EAS
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: 🚀 Build Web
-        run: eas build --platform web --non-interactive --wait
+        run: eas build --platform ${{ matrix.platform }} --profile ${{ matrix.profile }} --non-interactive --wait
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
