@@ -10,6 +10,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ChatScreen } from '../screens/ChatScreen';
 import { ConversationsScreen } from '../screens/ConversationsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { ModelsScreen } from '../screens/ModelsScreen';
 import { MainNavigator } from './MainNavigator';
 import { colors, typography, spacing } from '../theme';
 import { useResponsive } from '../utils/responsive';
@@ -17,12 +18,25 @@ import { useChat } from '../context/ChatContext';
 
 const Stack = createNativeStackNavigator();
 
+type TabType = 'chat' | 'models' | 'settings';
+
 function DesktopLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
   const { state, createConversation, selectConversation } = useChat();
   const { layout } = useResponsive();
-  const [activeTab, setActiveTab] = useState<'chat' | 'settings'>('chat');
+  const [activeTab, setActiveTab] = useState<TabType>('chat');
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'models':
+        return <ModelsScreen />;
+      case 'settings':
+        return <SettingsScreen />;
+      default:
+        return <ChatScreen />;
+    }
+  };
 
   return (
     <View style={[styles.desktopContainer, { backgroundColor: theme.background }]}>
@@ -81,6 +95,16 @@ function DesktopLayout() {
           <TouchableOpacity
             style={[
               styles.footerBtn,
+              activeTab === 'models' && { backgroundColor: theme.background }
+            ]}
+            onPress={() => setActiveTab('models')}
+          >
+            <Text style={styles.footerIcon}>🤖</Text>
+            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>模型</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.footerBtn,
               activeTab === 'settings' && { backgroundColor: theme.background }
             ]}
             onPress={() => setActiveTab('settings')}
@@ -92,7 +116,7 @@ function DesktopLayout() {
       </View>
 
       <View style={styles.desktopContent}>
-        {activeTab === 'settings' ? <SettingsScreen /> : <ChatScreen />}
+        {renderContent()}
       </View>
     </View>
   );
