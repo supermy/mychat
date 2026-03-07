@@ -16,14 +16,15 @@ declare global {
     electronAPI?: {
       getSystemMemory: () => Promise<SystemInfo>;
       getModelsDir: () => Promise<string>;
-      listModels: () => Promise<Array<{ name: string; path: string; size: number }>>;
-      startLlama: (options: { modelPath: string; options: any }) => Promise<{ port: number }>;
-      stopLlama: () => Promise<void>;
-      getLlamaStatus: () => Promise<{ running: boolean; port: number }>;
+      getDefaultModel: () => Promise<{ exists: boolean; name?: string; path?: string; size?: number }>;
+      listModels: () => Promise<Array<{ name: string; path: string; size: number; isDefault?: boolean }>>;
+      startEngine: (engine: string, config: any) => Promise<{ port: number; engine?: string }>;
+      stopEngine: () => Promise<void>;
+      getCurrentEngine: () => Promise<{ running: boolean; port: number; engine?: string }>;
       downloadModel: (options: { url: string; filename: string }) => Promise<{ path: string; size: number }>;
       deleteModel: (filename: string) => Promise<boolean>;
       onDownloadProgress: (callback: (data: { progress: string; downloaded: number; totalSize: number }) => void) => void;
-      removeDownloadProgressListener: () => void;
+      removeDownloadListeners: () => void;
     };
   }
 }
@@ -38,8 +39,9 @@ interface DownloadProgress {
 export function ModelsScreen() {
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [recommendations, setRecommendations] = useState<ModelRecommendation[]>([]);
-  const [downloadedModels, setDownloadedModels] = useState<Array<{ name: string; path: string; size: number }>>([]);
-  const [llamaStatus, setLlamaStatus] = useState<{ running: boolean; port: number } | null>(null);
+  const [downloadedModels, setDownloadedModels] = useState<Array<{ name: string; path: string; size: number; isDefault?: boolean }>>([]);
+  const [defaultModel, setDefaultModel] = useState<{ exists: boolean; name?: string; path?: string; size?: number }>({ exists: false });
+  const [engineStatus, setEngineStatus] = useState<{ running: boolean; port: number; engine?: string } | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeModel, setActiveModel] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export function ModelsScreen() {
     
     return () => {
       if (window.electronAPI) {
-        window.electronAPI.removeDownloadProgressListener();
+        window.electronAPI.removeDownloadListeners();
       }
     };
   }, []);
@@ -75,15 +77,17 @@ export function ModelsScreen() {
     }
 
     try {
-      const [memory, models, status] = await Promise.all([
+      const [memory, models, defModel, status] = await Promise.all([
         window.electronAPI.getSystemMemory(),
         window.electronAPI.listModels(),
-        window.electronAPI.getLlamaStatus()
+        window.electronAPI.getDefaultModel(),
+        window.electronAPI.getCurrentEngine()
       ]);
 
       setSystemInfo(memory);
       setDownloadedModels(models);
-      setLlamaStatus(status);
+      setDefaultModel(defModel);
+      setEngineStatus(status);
       setRecommendations(recommendModels(memory));
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -118,14 +122,12 @@ export function ModelsScreen() {
 
     try {
       setActiveModel(modelName);
-      await window.electronAPI.startLlama({
+      await window.electronAPI.startEngine('llama', {
         modelPath,
-        options: {
-          ctxSize: 4096,
-          gpuLayers: -1,
-          threads: 4,
-          flashAttention: true
-        }
+        ctxSize: 4096,
+        gpuLayers: -1,
+        threads: 4,
+        flashAttention: true
       });
       await loadData();
     } catch (error) {
@@ -136,7 +138,7 @@ export function ModelsScreen() {
 
   const handleStopModel = async () => {
     if (!window.electronAPI) return;
-    await window.electronAPI.stopLlama();
+    await window.electronAPI.stopEngine();
     setActiveModel(null);
     await loadData();
   };
@@ -191,16 +193,11 @@ export function ModelsScreen() {
             <Text style={[styles.infoText, { color: theme.text }]}>
               ✅ 可用内存: {systemInfo.freeGB} GB
             </Text>
-            {systemInfo.hasGpu && (
-              <Text style={[styles.infoText, { color: theme.text }]}>
-                🎮 GPU 显存: {Math.round(systemInfo.vram / (1024 * 1024 * 1024))} GB
-              </Text>
-            )}
           </View>
         )}
       </View>
 
-      {llamaStatus?.running && (
+      {engineStatus?.running && (
         <View style={styles.section}>
           <View style={[styles.statusCard, { backgroundColor: '#D4EDDA' }]}>
             <View style={styles.statusInfo}>
@@ -208,12 +205,44 @@ export function ModelsScreen() {
                 ✅ 模型运行中
               </Text>
               <Text style={[styles.statusDetail, { color: '#155724' }]}>
-                {activeModel} | 端口: {llamaStatus.port}
+                {activeModel} | 端口: {engineStatus.port}
               </Text>
             </View>
             <TouchableOpacity style={styles.stopButton} onPress={handleStopModel}>
               <Text style={styles.stopButtonText}>停止</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {defaultModel.exists && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>内置模型</Text>
+          <View style={[styles.modelCard, { backgroundColor: theme.surface, borderColor: theme.primary, borderWidth: 2 }]}>
+            <View style={styles.modelInfo}>
+              <View style={styles.modelHeader}>
+                <Text style={[styles.modelName, { color: theme.text }]}>{defaultModel.name}</Text>
+                <View style={[styles.defaultBadge, { backgroundColor: theme.primary }]}>
+                  <Text style={styles.defaultBadgeText}>内置</Text>
+                </View>
+              </View>
+              <Text style={[styles.modelSize, { color: theme.textSecondary }]}>
+                {formatSize(defaultModel.size || 0)}
+              </Text>
+              <Text style={[styles.modelDesc, { color: theme.textSecondary }]}>
+                Qwen3.5-0.8B 超轻量模型，开箱即用
+              </Text>
+            </View>
+            <View style={styles.modelActions}>
+              {!engineStatus?.running && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                  onPress={() => handleStartModel(defaultModel.path!, defaultModel.name!)}
+                >
+                  <Text style={styles.actionButtonText}>启动</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
       )}
@@ -230,7 +259,7 @@ export function ModelsScreen() {
             </Text>
           </View>
         ) : (
-          downloadedModels.map((model) => (
+          downloadedModels.filter(m => !m.isDefault).map((model) => (
             <View key={model.name} style={[styles.modelCard, { backgroundColor: theme.surface }]}>
               <View style={styles.modelInfo}>
                 <Text style={[styles.modelName, { color: theme.text }]}>{model.name}</Text>
@@ -239,7 +268,7 @@ export function ModelsScreen() {
                 </Text>
               </View>
               <View style={styles.modelActions}>
-                {!llamaStatus?.running ? (
+                {!engineStatus?.running ? (
                   <TouchableOpacity
                     style={[styles.actionButton, { backgroundColor: theme.primary }]}
                     onPress={() => handleStartModel(model.path, model.name)}
@@ -434,9 +463,25 @@ const styles = StyleSheet.create({
   modelInfo: {
     marginBottom: spacing.sm,
   },
+  modelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
   modelName: {
     ...typography.subtitle,
-    marginBottom: spacing.xs,
+    flex: 1,
+  },
+  defaultBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: spacing.sm,
+  },
+  defaultBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   modelDesc: {
     ...typography.body,

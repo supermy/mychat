@@ -44,6 +44,16 @@ function getModelsDir() {
   return path.join(homeDir, '.mychat', 'models');
 }
 
+function getDefaultModelPath() {
+  const defaultModelName = 'Qwen3.5-0.8B-UD-Q4_K_XL.gguf';
+  
+  if (isDev) {
+    return path.join(__dirname, '..', 'default-model', defaultModelName);
+  }
+  
+  return path.join(process.resourcesPath, 'default-model', defaultModelName);
+}
+
 function getConfigPath() {
   const homeDir = app.getPath('home');
   return path.join(homeDir, '.mychat', 'config.json');
@@ -228,18 +238,48 @@ ipcMain.handle('get-models-dir', () => {
   return getModelsDir();
 });
 
+ipcMain.handle('get-default-model', () => {
+  const defaultModelPath = getDefaultModelPath();
+  if (fs.existsSync(defaultModelPath)) {
+    return {
+      exists: true,
+      name: path.basename(defaultModelPath),
+      path: defaultModelPath,
+      size: fs.statSync(defaultModelPath).size
+    };
+  }
+  return { exists: false };
+});
+
 ipcMain.handle('list-models', () => {
   const modelsDir = getModelsDir();
-  if (!fs.existsSync(modelsDir)) {
-    return [];
+  const models = [];
+  
+  // Add default model
+  const defaultModelPath = getDefaultModelPath();
+  if (fs.existsSync(defaultModelPath)) {
+    models.push({
+      name: path.basename(defaultModelPath),
+      path: defaultModelPath,
+      size: fs.statSync(defaultModelPath).size,
+      isDefault: true
+    });
   }
-  return fs.readdirSync(modelsDir)
-    .filter(f => f.endsWith('.gguf'))
-    .map(f => ({
-      name: f,
-      path: path.join(modelsDir, f),
-      size: fs.statSync(path.join(modelsDir, f)).size
-    }));
+  
+  // Add user models
+  if (fs.existsSync(modelsDir)) {
+    const userModels = fs.readdirSync(modelsDir)
+      .filter(f => f.endsWith('.gguf'))
+      .map(f => ({
+        name: f,
+        path: path.join(modelsDir, f),
+        size: fs.statSync(path.join(modelsDir, f)).size,
+        isDefault: false
+      }));
+    models.push(...userModels);
+  }
+  
+  return models;
 });
 
 ipcMain.handle('get-engine-status', async (event, engine) => {

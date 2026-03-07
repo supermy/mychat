@@ -11,12 +11,14 @@
     "lint": "eslint .",
     "engine:download": "node scripts/download-engines.js",
     "engine:check": "node scripts/download-engines.js check",
+    "model:download": "node scripts/download-model.js",
+    "model:check": "node scripts/download-model.js check",
     "electron:dev": "concurrently \"npm run web\" \"wait-on http://localhost:8081 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build:web && electron-builder",
-    "electron:build:mac": "npm run engine:download && npm run build:web && electron-builder --mac",
-    "electron:build:win": "npm run build:web && electron-builder --win",
-    "electron:build:all": "npm run engine:download all && npm run build:web && electron-builder --mac --win",
-    "postinstall": "node scripts/download-engines.js check"
+    "electron:build:mac": "npm run engine:download && npm run model:download && npm run build:web && electron-builder --mac",
+    "electron:build:win": "npm run engine:download && npm run model:download && npm run build:web && electron-builder --win",
+    "electron:build:all": "npm run engine:download all && npm run model:download && npm run build:web && electron-builder --mac --win",
+    "postinstall": "node scripts/download-engines.js check && node scripts/download-model.js check"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -60,6 +62,7 @@
       "electron/**/*",
       "dist/**/*",
       "scripts/download-engines.js",
+      "scripts/download-model.js",
       "package.json"
     ],
     "extraResources": [
@@ -67,6 +70,11 @@
         "from": "engine-binaries/${os}",
         "to": "engine-binaries",
         "filter": ["**/*"]
+      },
+      {
+        "from": "default-model",
+        "to": "default-model",
+        "filter": ["**/*.gguf"]
       }
     ],
     "mac": {

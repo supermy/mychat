@@ -11,6 +11,7 @@ npm-debug.*
 web-build/
 desktop-build/
 engine-binaries/
+default-model/
 .DS_Store
 *.tsbuildinfo
 .idea/

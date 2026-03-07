@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Models
   getModelsDir: () => ipcRenderer.invoke('get-models-dir'),
+  getDefaultModel: () => ipcRenderer.invoke('get-default-model'),
   listModels: () => ipcRenderer.invoke('list-models'),
   downloadModel: (options) => ipcRenderer.invoke('download-model', options),
   deleteModel: (filename) => ipcRenderer.invoke('delete-model', filename),
