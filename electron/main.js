@@ -1,6 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 
@@ -16,7 +15,7 @@ function getLlamaBinaryPath() {
   
   let binaryName;
   if (platform === 'darwin') {
-    binaryName = arch === 'arm64' ? 'llama-server-arm64' : 'llama-server-x64';
+    binaryName = arch === 'arm64' ? 'llama-server' : 'llama-server';
   } else if (platform === 'win32') {
     binaryName = 'llama-server.exe';
   } else {
@@ -54,7 +53,9 @@ function getSystemMemory() {
     total: totalMem,
     free: freeMem,
     totalGB: Math.round(totalMem / (1024 * 1024 * 1024)),
-    freeGB: Math.round(freeMem / (1024 * 1024 * 1024))
+    freeGB: Math.round(freeMem / (1024 * 1024 * 1024)),
+    hasGpu: false,
+    vram: 0
   };
 }
 
@@ -95,7 +96,8 @@ function startLlamaServer(modelPath, options = {}) {
     const binaryPath = getLlamaBinaryPath();
     
     if (!fs.existsSync(binaryPath)) {
-      reject(new Error(`llama.cpp binary not found at: ${binaryPath}`));
+      console.log('llama.cpp binary not found, will use external API');
+      resolve({ port: llamaPort, external: true });
       return;
     }
 
@@ -114,6 +116,7 @@ function startLlamaServer(modelPath, options = {}) {
       args.push('--flash-attn');
     }
 
+    const { spawn } = require('child_process');
     llamaProcess = spawn(binaryPath, args);
     
     let resolved = false;
@@ -135,7 +138,7 @@ function startLlamaServer(modelPath, options = {}) {
     llamaProcess.on('error', (err) => {
       console.error('Failed to start llama server:', err);
       if (!resolved) {
-        reject(err);
+        resolve({ port: llamaPort, external: true });
       }
     });
 

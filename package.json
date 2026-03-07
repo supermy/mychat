@@ -1,7 +1,7 @@
 {
   "name": "mychat",
   "version": "1.0.0",
-  "main": "expo/AppEntry.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "lint": "eslint .",
-    "electron:dev": "concurrently \"npm run web\" \"wait-on http://localhost:8081 && cross-env NODE_ENV=development electron electron/main.js\"",
+    "electron:dev": "concurrently \"npm run web\" \"wait-on http://localhost:8081 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build:web && electron-builder",
     "electron:build:mac": "npm run build:web && electron-builder --mac",
     "electron:build:win": "npm run build:web && electron-builder --win",
@@ -45,6 +45,8 @@
     "wait-on": "^7.2.0"
   },
   "private": true,
+  "author": "MyChat Team",
+  "description": "Cross-platform AI Chat Application with Local LLM Support",
   "build": {
     "appId": "com.mychat.desktop",
     "productName": "MyChat",
@@ -53,11 +55,12 @@
     },
     "files": [
       "electron/**/*",
-      "dist/**/*"
+      "dist/**/*",
+      "package.json"
     ],
     "extraResources": [
       {
-        "from": "llama-binaries/${os}",
+        "from": "llama-binaries/darwin",
         "to": "llama-binaries",
         "filter": ["**/*"]
       }
