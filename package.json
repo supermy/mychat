@@ -9,14 +9,14 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "lint": "eslint .",
-    "llama:download": "node scripts/download-llama.js",
-    "llama:check": "node scripts/download-llama.js check",
+    "engine:download": "node scripts/download-engines.js",
+    "engine:check": "node scripts/download-engines.js check",
     "electron:dev": "concurrently \"npm run web\" \"wait-on http://localhost:8081 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build:web && electron-builder",
-    "electron:build:mac": "npm run llama:download && npm run build:web && electron-builder --mac",
+    "electron:build:mac": "npm run engine:download && npm run build:web && electron-builder --mac",
     "electron:build:win": "npm run build:web && electron-builder --win",
-    "electron:build:all": "npm run llama:download all && npm run build:web && electron-builder --mac --win",
-    "postinstall": "node scripts/download-llama.js check"
+    "electron:build:all": "npm run engine:download all && npm run build:web && electron-builder --mac --win",
+    "postinstall": "node scripts/download-engines.js check"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -59,12 +59,13 @@
     "files": [
       "electron/**/*",
       "dist/**/*",
+      "scripts/download-engines.js",
       "package.json"
     ],
     "extraResources": [
       {
-        "from": "llama-binaries/${os}",
-        "to": "llama-binaries",
+        "from": "engine-binaries/${os}",
+        "to": "engine-binaries",
         "filter": ["**/*"]
       }
     ],

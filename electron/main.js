@@ -2,31 +2,41 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { spawn } = require('child_process');
 
 let mainWindow;
-let llamaProcess = null;
-let llamaPort = 8080;
+let engineProcess = null;
+let enginePort = 8080;
+let currentEngine = null;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
-function getLlamaBinaryPath() {
+function getEngineBinaryPath(engine) {
   const platform = process.platform;
   const arch = process.arch;
   
   let binaryName;
-  if (platform === 'darwin') {
-    binaryName = arch === 'arm64' ? 'llama-server' : 'llama-server';
-  } else if (platform === 'win32') {
-    binaryName = 'llama-server.exe';
+  if (engine === 'llama') {
+    if (platform === 'win32') {
+      binaryName = 'llama-server.exe';
+    } else {
+      binaryName = 'llama-server';
+    }
+  } else if (engine === 'zeroclaw') {
+    if (platform === 'win32') {
+      binaryName = 'zeroclaw.exe';
+    } else {
+      binaryName = 'zeroclaw';
+    }
   } else {
-    binaryName = 'llama-server';
+    return null;
   }
   
   if (isDev) {
-    return path.join(__dirname, '..', 'llama-binaries', platform, binaryName);
+    return path.join(__dirname, '..', 'engine-binaries', engine, platform, binaryName);
   }
   
-  return path.join(process.resourcesPath, 'llama-binaries', binaryName);
+  return path.join(process.resourcesPath, 'engine-binaries', binaryName);
 }
 
 function getModelsDir() {
@@ -43,6 +53,11 @@ function ensureDirs() {
   const modelsDir = getModelsDir();
   if (!fs.existsSync(modelsDir)) {
     fs.mkdirSync(modelsDir, { recursive: true });
+  }
+  
+  const configDir = path.dirname(getConfigPath());
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
   }
 }
 
@@ -86,84 +101,95 @@ function createWindow() {
   }
 }
 
-function startLlamaServer(modelPath, options = {}) {
+function startEngine(engine, config) {
   return new Promise((resolve, reject) => {
-    if (llamaProcess) {
-      llamaProcess.kill();
-      llamaProcess = null;
+    if (engineProcess) {
+      engineProcess.kill();
+      engineProcess = null;
     }
 
-    const binaryPath = getLlamaBinaryPath();
+    const binaryPath = getEngineBinaryPath(engine);
     
-    if (!fs.existsSync(binaryPath)) {
-      console.log('llama.cpp binary not found, will use external API');
-      resolve({ port: llamaPort, external: true });
+    if (!binaryPath || !fs.existsSync(binaryPath)) {
+      console.log(`${engine} binary not found, will use external API`);
+      resolve({ port: config.port || enginePort, external: true });
       return;
     }
 
-    const args = [
-      '-m', modelPath,
-      '--host', '127.0.0.1',
-      '--port', llamaPort.toString(),
-      '--ctx-size', (options.ctxSize || 4096).toString(),
-      '--n-gpu-layers', (options.gpuLayers || -1).toString(),
-      '--threads', (options.threads || 4).toString(),
-      '--cont-batching',
-      '--metrics'
-    ];
-
-    if (options.flashAttention) {
-      args.push('--flash-attn');
+    let args;
+    if (engine === 'llama') {
+      args = [
+        '-m', config.modelPath,
+        '--host', '127.0.0.1',
+        '--port', (config.port || enginePort).toString(),
+        '--ctx-size', (config.contextSize || 4096).toString(),
+        '--n-gpu-layers', (config.gpuLayers ?? -1).toString(),
+        '--threads', (config.threads || 4).toString(),
+        '--cont-batching',
+        '--metrics'
+      ];
+      if (config.flashAttention) {
+        args.push('--flash-attn');
+      }
+    } else if (engine === 'zeroclaw') {
+      args = [
+        '--model', config.modelPath,
+        '--host', '127.0.0.1',
+        '--port', (config.port || enginePort).toString(),
+        '--ctx-size', (config.contextSize || 4096).toString(),
+      ];
     }
 
-    const { spawn } = require('child_process');
-    llamaProcess = spawn(binaryPath, args);
+    engineProcess = spawn(binaryPath, args);
+    currentEngine = engine;
     
     let resolved = false;
 
-    llamaProcess.stdout.on('data', (data) => {
+    engineProcess.stdout.on('data', (data) => {
       const output = data.toString();
-      console.log('[llama]', output);
+      console.log(`[${engine}]`, output);
       
-      if (!resolved && output.includes('HTTP server listening')) {
+      if (!resolved && (output.includes('HTTP server listening') || output.includes('Server started'))) {
         resolved = true;
-        resolve({ port: llamaPort });
+        resolve({ port: config.port || enginePort, engine });
       }
     });
 
-    llamaProcess.stderr.on('data', (data) => {
-      console.error('[llama error]', data.toString());
+    engineProcess.stderr.on('data', (data) => {
+      console.error(`[${engine} error]`, data.toString());
     });
 
-    llamaProcess.on('error', (err) => {
-      console.error('Failed to start llama server:', err);
+    engineProcess.on('error', (err) => {
+      console.error(`Failed to start ${engine}:`, err);
       if (!resolved) {
-        resolve({ port: llamaPort, external: true });
+        resolve({ port: config.port || enginePort, external: true });
       }
     });
 
-    llamaProcess.on('close', (code) => {
-      console.log(`llama server exited with code ${code}`);
-      llamaProcess = null;
+    engineProcess.on('close', (code) => {
+      console.log(`${engine} exited with code ${code}`);
+      engineProcess = null;
+      currentEngine = null;
     });
 
     setTimeout(() => {
       if (!resolved) {
         resolved = true;
-        resolve({ port: llamaPort });
+        resolve({ port: config.port || enginePort, engine });
       }
     }, 5000);
   });
 }
 
-function stopLlamaServer() {
+function stopEngine() {
   return new Promise((resolve) => {
-    if (llamaProcess) {
-      llamaProcess.on('close', () => {
+    if (engineProcess) {
+      engineProcess.on('close', () => {
         resolve();
       });
-      llamaProcess.kill();
-      llamaProcess = null;
+      engineProcess.kill();
+      engineProcess = null;
+      currentEngine = null;
     } else {
       resolve();
     }
@@ -182,15 +208,17 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  stopLlamaServer();
+  stopEngine();
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('before-quit', () => {
-  stopLlamaServer();
+  stopEngine();
 });
+
+// IPC Handlers
 
 ipcMain.handle('get-system-memory', () => {
   return getSystemMemory();
@@ -214,22 +242,104 @@ ipcMain.handle('list-models', () => {
     }));
 });
 
-ipcMain.handle('start-llama', async (event, { modelPath, options }) => {
-  return startLlamaServer(modelPath, options);
-});
-
-ipcMain.handle('stop-llama', async () => {
-  return stopLlamaServer();
-});
-
-ipcMain.handle('get-llama-status', () => {
+ipcMain.handle('get-engine-status', async (event, engine) => {
+  const binaryPath = getEngineBinaryPath(engine);
+  const installed = binaryPath && fs.existsSync(binaryPath);
+  
   return {
-    running: llamaProcess !== null,
-    port: llamaPort
+    installed,
+    path: binaryPath || '',
+    version: installed ? '1.0.0' : ''
   };
 });
 
-ipcMain.handle('download-model', async (event, { url, filename, onProgress }) => {
+ipcMain.handle('start-engine', async (event, { engine, config }) => {
+  return startEngine(engine, config);
+});
+
+ipcMain.handle('stop-engine', async () => {
+  return stopEngine();
+});
+
+ipcMain.handle('get-current-engine', () => {
+  return {
+    engine: currentEngine,
+    running: engineProcess !== null,
+    port: enginePort
+  };
+});
+
+ipcMain.handle('download-engine', async (event, { engine }) => {
+  const { downloadEngine } = require('../scripts/download-engines.js');
+  const platform = process.platform;
+  const arch = process.arch;
+  
+  try {
+    const result = await downloadEngine(engine, platform, arch);
+    return { success: !!result, path: result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('test-engine', async (event, { engine, config }) => {
+  try {
+    const http = require('http');
+    const port = config.port || enginePort;
+    
+    return new Promise((resolve) => {
+      const req = http.get(`http://127.0.0.1:${port}/v1/models`, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          resolve({ success: true, message: '连接成功！引擎正在运行。' });
+        });
+      });
+      
+      req.on('error', () => {
+        resolve({ success: false, message: '无法连接到引擎，请确保引擎已启动。' });
+      });
+      
+      req.setTimeout(5000, () => {
+        req.destroy();
+        resolve({ success: false, message: '连接超时' });
+      });
+    });
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('delete-model', async (event, filename) => {
+  const modelsDir = getModelsDir();
+  const filePath = path.join(modelsDir, filename);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('get-config', () => {
+  const configPath = getConfigPath();
+  if (fs.existsSync(configPath)) {
+    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  }
+  return null;
+});
+
+ipcMain.handle('save-config', (event, config) => {
+  const configPath = getConfigPath();
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  return true;
+});
+
+ipcMain.handle('check-first-run', () => {
+  const configPath = getConfigPath();
+  return !fs.existsSync(configPath);
+});
+
+ipcMain.handle('download-model', async (event, { url, filename }) => {
   const https = require('https');
   const http = require('http');
   const modelsDir = getModelsDir();
@@ -243,8 +353,9 @@ ipcMain.handle('download-model', async (event, { url, filename, onProgress }) =>
       if (response.statusCode === 302 || response.statusCode === 301) {
         file.close();
         fs.unlinkSync(filePath);
+        // Handle redirect
         const redirectUrl = response.headers.location;
-        ipcMain.handle('download-model-redirect', async () => ({ url: redirectUrl, filename }));
+        event.sender.send('download-redirect', { url: redirectUrl, filename });
         reject(new Error('Redirect'));
         return;
       }
@@ -271,33 +382,9 @@ ipcMain.handle('download-model', async (event, { url, filename, onProgress }) =>
       reject(err);
     });
     
-    request.setTimeout(300000, () => {
+    request.setTimeout(600000, () => {
       request.destroy();
       reject(new Error('Download timeout'));
     });
   });
-});
-
-ipcMain.handle('delete-model', async (event, filename) => {
-  const modelsDir = getModelsDir();
-  const filePath = path.join(modelsDir, filename);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-    return true;
-  }
-  return false;
-});
-
-ipcMain.handle('get-config', () => {
-  const configPath = getConfigPath();
-  if (fs.existsSync(configPath)) {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  }
-  return null;
-});
-
-ipcMain.handle('save-config', (event, config) => {
-  const configPath = getConfigPath();
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  return true;
 });
