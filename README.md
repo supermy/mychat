@@ -9,7 +9,8 @@
 
 <p align="center">
   <strong>跨平台 AI 聊天应用</strong><br>
-  支持 iOS、Android、Web/Desktop，内置 llama.cpp 和 ZeroClaw 推理引擎
+  支持 iOS、Android、Web/Desktop，内置 llama.cpp 和 ZeroClaw 推理引擎<br>
+  打包默认模型 Qwen3.5-0.8B，开箱即用
 </p>
 
 ---
@@ -24,13 +25,20 @@
 - 📱 **跨平台** - iOS、Android、Web/Desktop
 - 🖥️ **桌面版特色**
   - 内置推理引擎，开箱即用
+  - 内置默认模型 Qwen3.5-0.8B
   - 配置向导，新手友好
   - 自动检测系统配置，推荐合适模型
   - 支持模型下载和管理
 - 🎨 **响应式设计** - 自动适配不同屏幕尺寸
 - 🌙 **深色模式** - 自动跟随系统主题
 
-## 📦 支持的模型
+## 📦 内置模型
+
+| 模型 | 参数量 | 大小 | 说明 |
+|------|--------|------|------|
+| **Qwen3.5-0.8B** | 0.8B | ~500MB | 默认内置，开箱即用 |
+
+## 📦 支持下载的模型
 
 | 模型 | 参数量 | Q4_K_XL 大小 | 最小内存 |
 |------|--------|-------------|---------|
@@ -78,7 +86,8 @@ npm run electron:dev
 
 ### 步骤 3：配置模型
 
-- 选择已下载的 GGUF 模型
+- 选择内置模型 Qwen3.5-0.8B
+- 或选择已下载的 GGUF 模型
 - 或从 ModelScope 下载新模型
 - 配置上下文大小、线程数等参数
 
@@ -110,12 +119,19 @@ npm run engine:download all       # 下载所有平台
 npm run engine:check              # 检查已安装的引擎
 ```
 
+### 模型管理
+
+```bash
+npm run model:download            # 下载默认模型
+npm run model:check               # 检查模型状态
+```
+
 ### 构建命令
 
 ```bash
 npm run build:web           # 构建 Web 版本
-npm run electron:build:mac  # 构建 macOS 应用
-npm run electron:build:win  # 构建 Windows 应用
+npm run electron:build:mac  # 构建 macOS 应用（含引擎+模型）
+npm run electron:build:win  # 构建 Windows 应用（含引擎+模型）
 npm run electron:build:all  # 构建所有平台
 ```
 
@@ -128,25 +144,30 @@ mychat/
 │   ├── main.js               # 主进程
 │   └── preload.js            # 预加载脚本
 ├── scripts/
-│   └── download-engines.js   # 引擎下载脚本
+│   ├── download-engines.js   # 引擎下载脚本
+│   └── download-model.js     # 模型下载脚本
 ├── engine-binaries/          # 引擎二进制文件
 │   ├── darwin/               # macOS
 │   └── win32/                # Windows
+├── default-model/            # 默认模型
+│   └── Qwen3.5-0.8B-UD-Q4_K_XL.gguf
 ├── src/
 │   ├── components/           # UI 组件
+│   │   └── SetupWizard.tsx   # 配置向导
 │   ├── context/              # 状态管理
 │   ├── navigation/           # 导航配置
 │   ├── screens/              # 页面组件
 │   │   ├── ChatScreen.tsx
 │   │   ├── ModelsScreen.tsx
-│   │   ├── SettingsScreen.tsx
-│   │   └── SetupWizard.tsx   # 配置向导
+│   │   └── SettingsScreen.tsx
 │   ├── services/
 │   │   ├── api.ts            # API 调用
 │   │   └── models.ts         # 模型配置
 │   ├── theme/                # 主题样式
 │   └── utils/                # 工具函数
-└── package.json
+├── package.json
+├── README.md
+└── CHANGELOG.md
 ```
 
 ## 🔧 手动配置
@@ -180,6 +201,24 @@ ollama serve
 | 模型支持 | 广泛 | GGUF |
 | GPU 加速 | 支持 | 支持 |
 | 适用场景 | 通用 | 资源受限 |
+
+## 📥 下载
+
+### GitHub Releases
+
+从 [Releases](https://github.com/supermy/mychat/releases) 页面下载最新版本：
+
+- **macOS**: MyChat-x.x.x-arm64.dmg (Apple Silicon) / MyChat-x.x.x.dmg (Intel)
+- **Windows**: MyChat Setup x.x.x.exe
+
+### 安装包内容
+
+| 组件 | 说明 |
+|------|------|
+| MyChat 应用 | 主程序 |
+| llama.cpp 引擎 | 本地推理引擎 |
+| ZeroClaw 引擎 | 轻量级推理引擎 |
+| Qwen3.5-0.8B | 默认内置模型 |
 
 ## 🤝 贡献
 
