@@ -9,11 +9,14 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "lint": "eslint .",
+    "llama:download": "node scripts/download-llama.js",
+    "llama:check": "node scripts/download-llama.js check",
     "electron:dev": "concurrently \"npm run web\" \"wait-on http://localhost:8081 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "npm run build:web && electron-builder",
-    "electron:build:mac": "npm run build:web && electron-builder --mac",
+    "electron:build:mac": "npm run llama:download && npm run build:web && electron-builder --mac",
     "electron:build:win": "npm run build:web && electron-builder --win",
-    "electron:build:all": "npm run build:web && electron-builder --mac --win"
+    "electron:build:all": "npm run llama:download all && npm run build:web && electron-builder --mac --win",
+    "postinstall": "node scripts/download-llama.js check"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -60,7 +63,7 @@
     ],
     "extraResources": [
       {
-        "from": "llama-binaries/darwin",
+        "from": "llama-binaries/${os}",
         "to": "llama-binaries",
         "filter": ["**/*"]
       }
