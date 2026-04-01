@@ -1,0 +1,15 @@
+#--chat-template-file /tmp/qwen3_fixed.jinja
+{%- for message in messages %}
+    {%- if message['role'] == 'system' or message['role'] == 'developer' %}
+        {{- '<|im_start|>system\n' + message['content'] + '<|im_end|>\n' }}
+    {%- elif message['role'] == 'user' %}
+        {{- '<|im_start|>user\n' + message['content'] + '<|im_end|>\n' }}
+    {%- elif message['role'] == 'assistant' %}
+        {{- '<|im_start|>assistant\n' + message['content'] + '<|im_end|>\n' }}
+    {%- elif message['role'] == 'tool' %}
+        {{- '<|im_start|>user\n[Tool Result]\n' + message['content'] + '<|im_end|>\n' }}
+    {%- else %}
+        {{- raise_exception('Unexpected message role: ' + message['role']) }}
+    {%- endif %}
+{%- endfor %}
+{{- '<|im_start|>assistant\n' }}

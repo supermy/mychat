@@ -11,6 +11,8 @@ import { ChatScreen } from '../screens/ChatScreen';
 import { ConversationsScreen } from '../screens/ConversationsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ModelsScreen } from '../screens/ModelsScreen';
+import { ZeroclawScreen } from '../screens/ZeroclawScreen';
+import { CodexScreen } from '../screens/CodexScreen';
 import { MainNavigator } from './MainNavigator';
 import { colors, typography, spacing } from '../theme';
 import { useResponsive } from '../utils/responsive';
@@ -18,20 +20,24 @@ import { useChat } from '../context/ChatContext';
 
 const Stack = createNativeStackNavigator();
 
-type TabType = 'chat' | 'models' | 'settings';
+type TabType = 'chat' | 'models' | 'zeroclaw' | 'codex' | 'cloud';
 
 function DesktopLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
   const { state, createConversation, selectConversation } = useChat();
   const { layout } = useResponsive();
-  const [activeTab, setActiveTab] = useState<TabType>('chat');
+  const [activeTab, setActiveTab] = useState<TabType>('models');
 
   const renderContent = () => {
     switch (activeTab) {
       case 'models':
         return <ModelsScreen />;
-      case 'settings':
+      case 'zeroclaw':
+        return <ZeroclawScreen />;
+      case 'codex':
+        return <CodexScreen />;
+      case 'cloud':
         return <SettingsScreen />;
       default:
         return <ChatScreen />;
@@ -99,18 +105,38 @@ function DesktopLayout() {
             ]}
             onPress={() => setActiveTab('models')}
           >
-            <Text style={styles.footerIcon}>🤖</Text>
-            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>模型</Text>
+            <Text style={styles.footerIcon}>📦</Text>
+            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>本地模型</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.footerBtn,
-              activeTab === 'settings' && { backgroundColor: theme.background }
+              activeTab === 'zeroclaw' && { backgroundColor: theme.background }
             ]}
-            onPress={() => setActiveTab('settings')}
+            onPress={() => setActiveTab('zeroclaw')}
           >
-            <Text style={styles.footerIcon}>⚙️</Text>
-            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>设置</Text>
+            <Text style={styles.footerIcon}>🌐</Text>
+            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>zeroclaw</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.footerBtn,
+              activeTab === 'codex' && { backgroundColor: theme.background }
+            ]}
+            onPress={() => setActiveTab('codex')}
+          >
+            <Text style={styles.footerIcon}>🤖</Text>
+            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>codex</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.footerBtn,
+              activeTab === 'cloud' && { backgroundColor: theme.background }
+            ]}
+            onPress={() => setActiveTab('cloud')}
+          >
+            <Text style={styles.footerIcon}>☁️</Text>
+            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>云端模型</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -138,59 +164,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   desktopSidebar: {
-    borderRightWidth: 1,
+    borderRightWidth: 0,
     paddingTop: spacing.lg,
   },
   sidebarHeader: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    borderBottomWidth: 0,
   },
   appTitle: {
     ...typography.title,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   newChatBtn: {
-    padding: spacing.sm,
-    borderRadius: 8,
+    padding: spacing.md,
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   newChatBtnText: {
     color: '#FFFFFF',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   conversationList: {
     flex: 1,
     paddingVertical: spacing.sm,
   },
   convItem: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderRadius: 8,
+    borderRadius: 12,
     marginHorizontal: spacing.sm,
-    marginVertical: 2,
+    marginVertical: 4,
   },
   convTitle: {
     ...typography.body,
   },
   sidebarFooter: {
-    padding: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    padding: spacing.lg,
+    borderTopWidth: 0,
   },
   footerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.sm,
-    borderRadius: 8,
+    padding: spacing.md,
+    borderRadius: 12,
+    marginVertical: 4,
   },
   footerIcon: {
-    fontSize: 18,
-    marginRight: spacing.sm,
+    fontSize: 20,
+    marginRight: spacing.md,
   },
   footerLabel: {
     ...typography.body,
+    fontWeight: '500',
   },
   desktopContent: {
     flex: 1,

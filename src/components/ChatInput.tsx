@@ -9,7 +9,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
-import { colors, spacing } from '../theme';
+import { colors, spacing, typography } from '../theme';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -78,29 +78,34 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderTopWidth: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderTopWidth: 0,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    borderWidth: 1,
+    borderWidth: 0,
     borderRadius: 24,
-    paddingLeft: spacing.md,
+    paddingLeft: spacing.lg,
     paddingRight: spacing.xs,
     paddingVertical: spacing.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 2,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    ...typography.body,
     maxHeight: 120,
     paddingVertical: spacing.sm,
   },
   sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: spacing.sm,

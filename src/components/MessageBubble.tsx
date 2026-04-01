@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, useColorScheme } from 'react-native';
-import { colors } from '../theme';
+import { colors, typography } from '../theme';
 
 interface MessageBubbleProps {
   content: string;
@@ -40,8 +40,8 @@ export function MessageBubble({ content, isUser, isStreaming }: MessageBubblePro
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 4,
-    marginHorizontal: 12,
+    marginVertical: 6,
+    marginHorizontal: 16,
   },
   userContainer: {
     alignItems: 'flex-end',
@@ -51,13 +51,18 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: '85%',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   text: {
-    fontSize: 15,
-    lineHeight: 22,
+    ...typography.body,
+    lineHeight: 24,
   },
   cursor: {
     fontWeight: '300',

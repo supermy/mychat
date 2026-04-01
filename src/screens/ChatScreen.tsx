@@ -11,7 +11,7 @@ import {
 import { useChat } from '../context/ChatContext';
 import { MessageBubble } from '../components/MessageBubble';
 import { ChatInput } from '../components/ChatInput';
-import { colors, spacing } from '../theme';
+import { colors, spacing, typography } from '../theme';
 import { Message } from '../types';
 
 export function ChatScreen() {
@@ -89,17 +89,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messageList: {
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
     flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.xl,
+    padding: spacing.xxl,
   },
   emptyText: {
-    fontSize: 16,
+    ...typography.body,
     textAlign: 'center',
+    lineHeight: 24,
   },
 });

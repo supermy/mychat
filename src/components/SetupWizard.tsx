@@ -6,8 +6,11 @@ import {
   Text,
   TouchableOpacity,
   ActivityIndicator,
+  useColorScheme,
 } from 'react-native';
 import { colors, spacing, typography } from '../theme';
+import { SystemInfo } from '../services/models';
+import '../types/electron';
 
 type EngineType = 'llama' | 'zeroclaw' | 'external';
 type WizardStep = 'welcome' | 'select-engine' | 'download' | 'configure' | 'test' | 'complete';
@@ -20,20 +23,6 @@ interface EngineStatus {
 
 interface WizardProps {
   onComplete: (config: { engine: EngineType; config: any }) => void;
-}
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      getEngineStatus: (engine: string) => Promise<EngineStatus>;
-      downloadEngine: (engine: string) => Promise<{ success: boolean; path?: string; error?: string }>;
-      testEngine: (engine: string, config: any) => Promise<{ success: boolean; message: string }>;
-      startEngine: (engine: string, config: any) => Promise<{ success: boolean; port?: number; error?: string }>;
-      stopEngine: () => Promise<void>;
-      getModelsDir: () => Promise<string>;
-      listModels: () => Promise<Array<{ name: string; path: string; size: number }>>;
-    };
-  }
 }
 
 export function SetupWizard({ onComplete }: WizardProps) {
@@ -50,9 +39,9 @@ export function SetupWizard({ onComplete }: WizardProps) {
     gpuLayers: -1,
     threads: 4,
   });
-  const [models, setModels] = useState<Array<{ name: string; path: string; size: number }>>([]);
+  const [models, setModels] = useState<Array<{ name: string; path: string; size: number; isDefault?: boolean }>>([]);
 
-  const colorScheme = 'light';
+  const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
 
   useEffect(() => {

@@ -4,6 +4,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ChatScreen } from '../screens/ChatScreen';
 import { ConversationsScreen } from '../screens/ConversationsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { ModelsScreen } from '../screens/ModelsScreen';
+import { ZeroclawScreen } from '../screens/ZeroclawScreen';
+import { CodexScreen } from '../screens/CodexScreen';
 import { colors, typography } from '../theme';
 
 const Tab = createBottomTabNavigator();
@@ -13,9 +16,11 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
 
   const icons: { [key: string]: string } = {
-    Conversations: '📋',
     Chat: '💬',
-    Settings: '⚙️',
+    Models: '📦',
+    Zeroclaw: '🌐',
+    Codex: '🤖',
+    Cloud: '☁️',
   };
 
   return (
@@ -31,7 +36,7 @@ export function MainNavigator() {
 
   return (
     <Tab.Navigator
-      initialRouteName="Conversations"
+      initialRouteName="Models"
       screenOptions={({ route }) => ({
         headerStyle: {
           backgroundColor: theme.background,
@@ -53,19 +58,29 @@ export function MainNavigator() {
       })}
     >
       <Tab.Screen
-        name="Conversations"
-        component={ConversationsScreen}
-        options={{ title: '对话' }}
-      />
-      <Tab.Screen
         name="Chat"
         component={ChatScreen}
         options={{ title: '聊天', headerShown: false }}
       />
       <Tab.Screen
-        name="Settings"
+        name="Models"
+        component={ModelsScreen}
+        options={{ title: '本地模型' }}
+      />
+      <Tab.Screen
+        name="Zeroclaw"
+        component={ZeroclawScreen}
+        options={{ title: 'zeroclaw' }}
+      />
+      <Tab.Screen
+        name="Codex"
+        component={CodexScreen}
+        options={{ title: 'codex' }}
+      />
+      <Tab.Screen
+        name="Cloud"
         component={SettingsScreen}
-        options={{ title: '设置' }}
+        options={{ title: '云端模型' }}
       />
     </Tab.Navigator>
   );

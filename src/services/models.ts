@@ -16,58 +16,21 @@ export interface ModelFile {
   quantization: string;
   size: number;
   url: string;
-  recommended: boolean;
 }
 
 export const AVAILABLE_MODELS: ModelInfo[] = [
-  {
-    id: 'glm-4.7-flash',
-    name: 'GLM-4.7-Flash',
-    description: '智谱AI GLM-4.7 Flash 模型，快速响应',
-    source: 'ModelScope',
-    baseUrl: 'https://www.modelscope.cn/models/unsloth/GLM-4.7-Flash-GGUF/files',
-    files: [
-      { name: 'GLM-4.7-Flash-Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 4.2 * 1024 * 1024 * 1024, url: '', recommended: true },
-      { name: 'GLM-4.7-Flash-Q4_K_M.gguf', quantization: 'Q4_K_M', size: 3.8 * 1024 * 1024 * 1024, url: '', recommended: false },
-      { name: 'GLM-4.7-Flash-Q5_K_M.gguf', quantization: 'Q5_K_M', size: 4.6 * 1024 * 1024 * 1024, url: '', recommended: false },
-      { name: 'GLM-4.7-Flash-Q8_0.gguf', quantization: 'Q8_0', size: 7.2 * 1024 * 1024 * 1024, url: '', recommended: false },
-    ],
-    minRam: 6,
-    recommendedRam: 8,
-    parameters: '10B',
-    contextLength: 131072
-  },
   {
     id: 'qwen3.5-2b',
     name: 'Qwen3.5-2B',
     description: '通义千问3.5 2B参数，轻量高效',
     source: 'ModelScope',
-    baseUrl: 'https://www.modelscope.cn/models/unsloth/Qwen3.5-2B-GGUF/files',
+    baseUrl: 'https://www.modelscope.cn/models/unsloth/Qwen3.5-2B-GGUF',
     files: [
-      { name: 'Qwen3.5-2B-Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 1.4 * 1024 * 1024 * 1024, url: '', recommended: true },
-      { name: 'Qwen3.5-2B-Q4_K_M.gguf', quantization: 'Q4_K_M', size: 1.2 * 1024 * 1024 * 1024, url: '', recommended: false },
-      { name: 'Qwen3.5-2B-Q5_K_M.gguf', quantization: 'Q5_K_M', size: 1.5 * 1024 * 1024 * 1024, url: '', recommended: false },
-      { name: 'Qwen3.5-2B-Q8_0.gguf', quantization: 'Q8_0', size: 2.4 * 1024 * 1024 * 1024, url: '', recommended: false },
+      { name: 'Qwen3.5-2B-UD-Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 1.34 * 1024 * 1024 * 1024, url: '' },
     ],
-    minRam: 4,
-    recommendedRam: 6,
+    minRam: 3,
+    recommendedRam: 4,
     parameters: '2B',
-    contextLength: 32768
-  },
-  {
-    id: 'qwen3.5-35b-a3b',
-    name: 'Qwen3.5-35B-A3B',
-    description: '通义千问3.5 35B MoE模型，高性能推理',
-    source: 'ModelScope',
-    baseUrl: 'https://www.modelscope.cn/models/unsloth/Qwen3.5-35B-A3B-GGUF/files',
-    files: [
-      { name: 'Qwen3.5-35B-A3B-Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 18 * 1024 * 1024 * 1024, url: '', recommended: true },
-      { name: 'Qwen3.5-35B-A3B-Q4_K_M.gguf', quantization: 'Q4_K_M', size: 16 * 1024 * 1024 * 1024, url: '', recommended: false },
-      { name: 'Qwen3.5-35B-A3B-Q5_K_M.gguf', quantization: 'Q5_K_M', size: 20 * 1024 * 1024 * 1024, url: '', recommended: false },
-    ],
-    minRam: 24,
-    recommendedRam: 32,
-    parameters: '35B (A3B MoE)',
     contextLength: 32768
   },
   {
@@ -75,18 +38,72 @@ export const AVAILABLE_MODELS: ModelInfo[] = [
     name: 'AgentCPM-Explore',
     description: 'AgentCPM 探索模型，适合智能体应用',
     source: 'ModelScope',
-    baseUrl: 'https://www.modelscope.cn/models/DevQuasar/openbmb.AgentCPM-Explore-GGUF/files',
+    baseUrl: 'https://www.modelscope.cn/models/DevQuasar/openbmb.AgentCPM-Explore-GGUF',
     files: [
-      { name: 'AgentCPM-Explore-Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 8 * 1024 * 1024 * 1024, url: '', recommended: true },
-      { name: 'AgentCPM-Explore-Q4_K_M.gguf', quantization: 'Q4_K_M', size: 7 * 1024 * 1024 * 1024, url: '', recommended: false },
-      { name: 'AgentCPM-Explore-Q5_K_M.gguf', quantization: 'Q5_K_M', size: 9 * 1024 * 1024 * 1024, url: '', recommended: false },
+      { name: 'openbmb.AgentCPM-Explore.Q4_K_M.gguf', quantization: 'Q4_K_M', size: 2.72 * 1024 * 1024 * 1024, url: '' },
     ],
-    minRam: 12,
-    recommendedRam: 16,
+    minRam: 5,
+    recommendedRam: 6,
     parameters: '8B',
+    contextLength: 32768
+  },
+  {
+    id: 'glm-4.7-flash',
+    name: 'GLM-4.7-Flash',
+    description: '智谱AI GLM-4.7 Flash 模型，快速响应',
+    source: 'ModelScope',
+    baseUrl: 'https://www.modelscope.cn/models/unsloth/GLM-4.7-Flash-GGUF',
+    files: [
+      { name: 'GLM-4.7-Flash-UD-Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 17.52 * 1024 * 1024 * 1024, url: '' },
+    ],
+    minRam: 20,
+    recommendedRam: 24,
+    parameters: '10B',
+    contextLength: 131072
+  },
+  {
+    id: 'qwen3.5-35b-a3b',
+    name: 'Qwen3.5-35B-A3B',
+    description: '通义千问3.5 35B MoE模型，高性能推理',
+    source: 'ModelScope',
+    baseUrl: 'https://www.modelscope.cn/models/unsloth/Qwen3.5-35B-A3B-GGUF',
+    files: [
+      { name: 'Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 22.24 * 1024 * 1024 * 1024, url: '' },
+    ],
+    minRam: 26,
+    recommendedRam: 32,
+    parameters: '35B (A3B MoE)',
+    contextLength: 32768
+  },
+  {
+    id: 'qwen3.5-0.8b',
+    name: 'Qwen3.5-0.8B',
+    description: '通义千问3.5 0.8B超轻量模型，开箱即用',
+    source: 'ModelScope',
+    baseUrl: 'https://www.modelscope.cn/models/unsloth/Qwen3.5-0.8B-GGUF',
+    files: [
+      { name: 'Qwen3.5-0.8B-UD-Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 0.5 * 1024 * 1024 * 1024, url: '' },
+    ],
+    minRam: 2,
+    recommendedRam: 3,
+    parameters: '0.8B',
     contextLength: 32768
   }
 ];
+
+export function getDownloadUrl(model: ModelInfo, file: ModelFile): string {
+  return `${model.baseUrl}/resolve/master/${file.name}`;
+}
+
+export function getRecommendedFile(model: ModelInfo): ModelFile {
+  const q4kxl = model.files.find(f => f.quantization === 'Q4_K_XL');
+  if (q4kxl) return q4kxl;
+  
+  const q4km = model.files.find(f => f.quantization === 'Q4_K_M');
+  if (q4km) return q4km;
+  
+  return model.files[0];
+}
 
 export interface SystemInfo {
   total: number;
@@ -104,26 +121,35 @@ export interface ModelRecommendation {
   canRun: boolean;
 }
 
+export function getQuantizationMemory(quantization: string, fileSizeGB: number): number {
+  const ratioMap: { [key: string]: number } = {
+    'Q4_K_XL': 1.15,
+    'Q4_K_M': 1.20,
+    'Q5_K_M': 1.35,
+    'Q8_0': 1.80,
+  };
+  const ratio = ratioMap[quantization] || 1.2;
+  return fileSizeGB * ratio;
+}
+
 export function recommendModels(systemInfo: SystemInfo): ModelRecommendation[] {
   const recommendations: ModelRecommendation[] = [];
   const availableRam = systemInfo.freeGB + (systemInfo.vram ? systemInfo.vram / (1024 * 1024 * 1024) : 0);
   
   for (const model of AVAILABLE_MODELS) {
-    const recommendedFile = model.files.find(f => f.recommended) || model.files[0];
+    const recommendedFile = getRecommendedFile(model);
     const fileSizeGB = recommendedFile.size / (1024 * 1024 * 1024);
-    const requiredRam = fileSizeGB * 1.3;
+    const requiredRam = getQuantizationMemory(recommendedFile.quantization, fileSizeGB);
     
-    const canRun = availableRam >= model.minRam;
+    const canRun = availableRam >= requiredRam;
     let reason = '';
     
-    if (availableRam >= model.recommendedRam * 1.2) {
-      reason = '✅ 推荐运行，内存充足';
-    } else if (availableRam >= model.recommendedRam) {
-      reason = '✅ 可以运行，内存刚好';
-    } else if (canRun) {
-      reason = '⚠️ 可以运行，但可能较慢';
+    if (availableRam >= requiredRam * 1.5) {
+      reason = `✅ 推荐运行 (需${requiredRam.toFixed(1)}GB内存)`;
+    } else if (availableRam >= requiredRam) {
+      reason = `✅ 可以运行 (需${requiredRam.toFixed(1)}GB内存)`;
     } else {
-      reason = '❌ 内存不足，无法运行';
+      reason = `❌ 内存不足 (需${requiredRam.toFixed(1)}GB内存，可用${availableRam.toFixed(1)}GB)`;
     }
     
     recommendations.push({
