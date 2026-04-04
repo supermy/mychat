@@ -81,7 +81,7 @@ function getDownloadUrl(engine, platform, arch, version, assets) {
       if (arch === 'arm64') {
         return `${baseUrl}/${v}/zeroclaw-aarch64-apple-darwin.tar.gz`;
       } else {
-        return `${baseUrl}/${v}/zeroclaw-x86_64-apple-darwin.tar.gz`;
+        return null;
       }
     } else if (platform === 'win32') {
       return `${baseUrl}/${v}/zeroclaw-x86_64-pc-windows-msvc.zip`;
@@ -276,6 +276,11 @@ async function downloadEngine(engine, platform, arch, version, onProgress, onLog
   const targetVersion = version || defaultVersion;
   const url = getDownloadUrl(engine, platform, arch, targetVersion);
   if (!url) {
+    if (engine === 'zeroclaw' && platform === 'darwin' && arch !== 'arm64') {
+      const errorMsg = `x86_64 macOS 需要通过 Homebrew 安装 zeroclaw:\n\n  brew install zeroclaw\n\n安装后重新运行此程序即可自动检测。`;
+      log(errorMsg, 'error');
+      throw new Error(errorMsg);
+    }
     throw new Error(`Unsupported platform: ${platform} ${arch}`);
   }
   
@@ -368,6 +373,16 @@ async function checkForUpdate(engine, platform, arch) {
           hasUpdate,
           systemPath: systemZeroclaw.path,
           releaseInfo: { version: systemZeroclaw.version }
+        };
+      }
+      
+      if (platform === 'darwin' && arch !== 'arm64') {
+        return {
+          currentVersion,
+          latestVersion: ZEROCLAW_VERSION,
+          hasUpdate: true,
+          requiresHomebrew: true,
+          message: 'x86_64 macOS 需要通过 Homebrew 安装 zeroclaw'
         };
       }
     }
