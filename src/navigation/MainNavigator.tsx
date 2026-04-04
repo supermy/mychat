@@ -61,14 +61,14 @@ export function MainNavigator() {
         options={{ title: '聊天', headerShown: false }}
       />
       <Tab.Screen
-        name="Models"
-        component={ModelsScreen}
-        options={{ title: '本地模型' }}
-      />
-      <Tab.Screen
         name="Zeroclaw"
         component={ZeroclawScreen}
         options={{ title: 'zeroclaw' }}
+      />
+      <Tab.Screen
+        name="Models"
+        component={ModelsScreen}
+        options={{ title: '本地模型' }}
       />
       <Tab.Screen
         name="Cloud"

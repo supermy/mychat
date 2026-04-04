@@ -98,22 +98,22 @@ function DesktopLayout() {
           <TouchableOpacity
             style={[
               styles.footerBtn,
-              activeTab === 'models' && { backgroundColor: theme.background }
-            ]}
-            onPress={() => setActiveTab('models')}
-          >
-            <Text style={styles.footerIcon}>📦</Text>
-            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>本地模型</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.footerBtn,
               activeTab === 'zeroclaw' && { backgroundColor: theme.background }
             ]}
             onPress={() => setActiveTab('zeroclaw')}
           >
             <Text style={styles.footerIcon}>🌐</Text>
             <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>zeroclaw</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.footerBtn,
+              activeTab === 'models' && { backgroundColor: theme.background }
+            ]}
+            onPress={() => setActiveTab('models')}
+          >
+            <Text style={styles.footerIcon}>📦</Text>
+            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>本地模型</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[

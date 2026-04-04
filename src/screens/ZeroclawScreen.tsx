@@ -99,9 +99,14 @@ interface LogEntry {
 }
 
 const PROVIDERS = [
-  { id: 'openrouter', name: 'OpenRouter', description: '多模型聚合平台' },
-  { id: 'openai', name: 'OpenAI', description: 'GPT系列模型' },
+  { id: 'openrouter', name: 'OpenRouter', description: '多模型聚合平台（推荐）' },
   { id: 'anthropic', name: 'Anthropic', description: 'Claude系列模型' },
+  { id: 'openai', name: 'OpenAI', description: 'GPT系列模型' },
+  { id: 'ollama', name: 'Ollama', description: '本地模型运行' },
+  { id: 'groq', name: 'Groq', description: '高速推理' },
+  { id: 'mistral', name: 'Mistral', description: 'Mistral系列模型' },
+  { id: 'xai', name: 'xAI', description: 'Grok系列模型' },
+  { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek系列模型' },
   { id: 'llamacpp', name: 'LLaMA.cpp', description: '本地模型' },
 ];
 
@@ -117,10 +122,16 @@ interface WizardConfig {
   apiKey: string;
   model: string;
   memory: string;
+  proxyUrl: string;
+  interruptOnNewMessage: boolean;
   channels: {
     telegram: { enabled: boolean; token: string };
     discord: { enabled: boolean; token: string };
     slack: { enabled: boolean; token: string };
+    whatsapp: { enabled: boolean; token: string };
+    signal: { enabled: boolean; token: string };
+    matrix: { enabled: boolean; token: string };
+    email: { enabled: boolean; token: string };
   };
 }
 
@@ -129,10 +140,16 @@ const DEFAULT_WIZARD_CONFIG: WizardConfig = {
   apiKey: '',
   model: '',
   memory: 'sqlite',
+  proxyUrl: '',
+  interruptOnNewMessage: false,
   channels: {
     telegram: { enabled: false, token: '' },
     discord: { enabled: false, token: '' },
     slack: { enabled: false, token: '' },
+    whatsapp: { enabled: false, token: '' },
+    signal: { enabled: false, token: '' },
+    matrix: { enabled: false, token: '' },
+    email: { enabled: false, token: '' },
   },
 };
 
@@ -416,6 +433,8 @@ export function ZeroclawScreen() {
         api_key: wizardConfig.apiKey,
         model: wizardConfig.model,
         memory: { backend: wizardConfig.memory },
+        proxy_url: wizardConfig.proxyUrl || undefined,
+        interrupt_on_new_message: wizardConfig.interruptOnNewMessage,
         channels: wizardConfig.channels,
       };
       
@@ -696,6 +715,41 @@ export function ZeroclawScreen() {
               格式：provider/model（如：openai/gpt-4、anthropic/claude-3-opus）
             </Text>
           )}
+          {wizardConfig.provider === 'anthropic' && (
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              模型：claude-sonnet-4-6、claude-3-5-sonnet、claude-3-opus
+            </Text>
+          )}
+          {wizardConfig.provider === 'openai' && (
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              模型：gpt-4、gpt-4-turbo、gpt-3.5-turbo
+            </Text>
+          )}
+          {wizardConfig.provider === 'ollama' && (
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              输入Ollama模型名称（如：llama3、qwen2）
+            </Text>
+          )}
+          {wizardConfig.provider === 'groq' && (
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              模型：llama-3.1-70b-versatile、mixtral-8x7b-32768
+            </Text>
+          )}
+          {wizardConfig.provider === 'mistral' && (
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              模型：mistral-large、mistral-medium、codestral
+            </Text>
+          )}
+          {wizardConfig.provider === 'xai' && (
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              模型：grok-beta
+            </Text>
+          )}
+          {wizardConfig.provider === 'deepseek' && (
+            <Text style={[styles.hint, { color: theme.textSecondary }]}>
+              模型：deepseek-chat、deepseek-coder
+            </Text>
+          )}
           {wizardConfig.provider === 'llamacpp' && (
             <Text style={[styles.hint, { color: theme.textSecondary }]}>
               输入本地模型名称（如：qwen3-35b）
@@ -722,6 +776,37 @@ export function ZeroclawScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>高级选项</Text>
+        <View style={[styles.configCard, { backgroundColor: theme.surface }]}>
+          <View style={styles.configRow}>
+            <Text style={[styles.configLabel, { color: theme.text }]}>代理 URL:</Text>
+            <TextInput
+              style={[styles.configInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+              value={wizardConfig.proxyUrl}
+              onChangeText={(text) => setWizardConfig({ ...wizardConfig, proxyUrl: text })}
+              placeholder="http://proxy:8080"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+          <Text style={[styles.hint, { color: theme.textSecondary }]}>
+            支持 HTTP/SOCKS5 代理（可选）
+          </Text>
+          <View style={styles.configRow}>
+            <Text style={[styles.configLabel, { color: theme.text }]}>新消息中断:</Text>
+            <Switch
+              value={wizardConfig.interruptOnNewMessage}
+              onValueChange={(value) => setWizardConfig({ ...wizardConfig, interruptOnNewMessage: value })}
+              trackColor={{ false: theme.border, true: theme.primary }}
+            />
+          </View>
+          <Text style={[styles.hint, { color: theme.textSecondary }]}>
+            收到新消息时中断当前任务（Discord/Mattermost）
+          </Text>
         </View>
       </View>
 
@@ -804,6 +889,114 @@ export function ZeroclawScreen() {
                   channels: { ...wizardConfig.channels, slack: { ...wizardConfig.channels.slack, token: text } }
                 })}
                 placeholder="Bot Token"
+                secureTextEntry
+              />
+            )}
+          </View>
+          
+          <View style={styles.channelRow}>
+            <TouchableOpacity
+              style={styles.channelToggle}
+              onPress={() => setWizardConfig({
+                ...wizardConfig,
+                channels: { ...wizardConfig.channels, whatsapp: { ...wizardConfig.channels.whatsapp, enabled: !wizardConfig.channels.whatsapp.enabled } }
+              })}
+            >
+              <Text style={[styles.channelName, { color: theme.text }]}>📱 WhatsApp</Text>
+              <View style={[styles.checkbox, wizardConfig.channels.whatsapp.enabled && { backgroundColor: theme.primary }]}>
+                {wizardConfig.channels.whatsapp.enabled && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+            </TouchableOpacity>
+            {wizardConfig.channels.whatsapp.enabled && (
+              <TextInput
+                style={[styles.configInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, marginTop: spacing.sm }]}
+                value={wizardConfig.channels.whatsapp.token}
+                onChangeText={(text) => setWizardConfig({
+                  ...wizardConfig,
+                  channels: { ...wizardConfig.channels, whatsapp: { ...wizardConfig.channels.whatsapp, token: text } }
+                })}
+                placeholder="API Token"
+                secureTextEntry
+              />
+            )}
+          </View>
+          
+          <View style={styles.channelRow}>
+            <TouchableOpacity
+              style={styles.channelToggle}
+              onPress={() => setWizardConfig({
+                ...wizardConfig,
+                channels: { ...wizardConfig.channels, signal: { ...wizardConfig.channels.signal, enabled: !wizardConfig.channels.signal.enabled } }
+              })}
+            >
+              <Text style={[styles.channelName, { color: theme.text }]}>🔐 Signal</Text>
+              <View style={[styles.checkbox, wizardConfig.channels.signal.enabled && { backgroundColor: theme.primary }]}>
+                {wizardConfig.channels.signal.enabled && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+            </TouchableOpacity>
+            {wizardConfig.channels.signal.enabled && (
+              <TextInput
+                style={[styles.configInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, marginTop: spacing.sm }]}
+                value={wizardConfig.channels.signal.token}
+                onChangeText={(text) => setWizardConfig({
+                  ...wizardConfig,
+                  channels: { ...wizardConfig.channels, signal: { ...wizardConfig.channels.signal, token: text } }
+                })}
+                placeholder="API Token"
+                secureTextEntry
+              />
+            )}
+          </View>
+          
+          <View style={styles.channelRow}>
+            <TouchableOpacity
+              style={styles.channelToggle}
+              onPress={() => setWizardConfig({
+                ...wizardConfig,
+                channels: { ...wizardConfig.channels, matrix: { ...wizardConfig.channels.matrix, enabled: !wizardConfig.channels.matrix.enabled } }
+              })}
+            >
+              <Text style={[styles.channelName, { color: theme.text }]}>🏠 Matrix</Text>
+              <View style={[styles.checkbox, wizardConfig.channels.matrix.enabled && { backgroundColor: theme.primary }]}>
+                {wizardConfig.channels.matrix.enabled && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+            </TouchableOpacity>
+            {wizardConfig.channels.matrix.enabled && (
+              <TextInput
+                style={[styles.configInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, marginTop: spacing.sm }]}
+                value={wizardConfig.channels.matrix.token}
+                onChangeText={(text) => setWizardConfig({
+                  ...wizardConfig,
+                  channels: { ...wizardConfig.channels, matrix: { ...wizardConfig.channels.matrix, token: text } }
+                })}
+                placeholder="Access Token"
+                secureTextEntry
+              />
+            )}
+          </View>
+          
+          <View style={styles.channelRow}>
+            <TouchableOpacity
+              style={styles.channelToggle}
+              onPress={() => setWizardConfig({
+                ...wizardConfig,
+                channels: { ...wizardConfig.channels, email: { ...wizardConfig.channels.email, enabled: !wizardConfig.channels.email.enabled } }
+              })}
+            >
+              <Text style={[styles.channelName, { color: theme.text }]}>📧 Email</Text>
+              <View style={[styles.checkbox, wizardConfig.channels.email.enabled && { backgroundColor: theme.primary }]}>
+                {wizardConfig.channels.email.enabled && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+            </TouchableOpacity>
+            {wizardConfig.channels.email.enabled && (
+              <TextInput
+                style={[styles.configInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, marginTop: spacing.sm }]}
+                value={wizardConfig.channels.email.token}
+                onChangeText={(text) => setWizardConfig({
+                  ...wizardConfig,
+                  channels: { ...wizardConfig.channels, email: { ...wizardConfig.channels.email, token: text } }
+                })}
+                placeholder="SMTP Config"
                 secureTextEntry
               />
             )}
