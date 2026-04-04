@@ -64,7 +64,7 @@ function getDownloadUrl(engine, platform, arch, version, assets) {
       if (arch === 'arm64') {
         return `${baseUrl}/${v}/zeroclaw-aarch64-apple-darwin.tar.gz`;
       } else {
-        return null;
+        return `${baseUrl}/${v}/zeroclaw-x86_64-apple-darwin.tar.gz`;
       }
     } else if (platform === 'win32') {
       return `${baseUrl}/${v}/zeroclaw-x86_64-pc-windows-msvc.zip`;
