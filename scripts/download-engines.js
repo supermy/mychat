@@ -2,23 +2,19 @@ const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const tar = require('tar');
 const AdmZip = require('adm-zip');
 
 const LLAMA_VERSION = 'b8229';
-const ZEROCLAW_VERSION = 'v0.1.7';
-const CODEX_VERSION = 'rust-v0.111.0';
+const ZEROCLAW_VERSION = 'v0.6.8';
 const LLAMA_GITHUB_API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest';
 const ZEROCLAW_GITHUB_API = 'https://api.github.com/repos/zeroclaw-labs/zeroclaw/releases/latest';
-const CODEX_GITHUB_API = 'https://api.github.com/repos/openai/codex/releases/latest';
 
 async function getLatestVersion(engine) {
   let apiUrl;
   if (engine === 'zeroclaw') {
     apiUrl = ZEROCLAW_GITHUB_API;
-  } else if (engine === 'codex') {
-    apiUrl = CODEX_GITHUB_API;
   } else {
     apiUrl = LLAMA_GITHUB_API;
   }
@@ -59,7 +55,7 @@ function saveVersion(engineDir, version) {
   fs.writeFileSync(versionFile, version);
 }
 
-function getDownloadUrl(engine, platform, arch, version) {
+function getDownloadUrl(engine, platform, arch, version, assets) {
   if (engine === 'zeroclaw') {
     const baseUrl = 'https://github.com/zeroclaw-labs/zeroclaw/releases/download';
     const v = version || ZEROCLAW_VERSION;
@@ -68,7 +64,7 @@ function getDownloadUrl(engine, platform, arch, version) {
       if (arch === 'arm64') {
         return `${baseUrl}/${v}/zeroclaw-aarch64-apple-darwin.tar.gz`;
       } else {
-        return `${baseUrl}/${v}/zeroclaw-x86_64-apple-darwin.tar.gz`;
+        return null;
       }
     } else if (platform === 'win32') {
       return `${baseUrl}/${v}/zeroclaw-x86_64-pc-windows-msvc.zip`;
@@ -77,32 +73,6 @@ function getDownloadUrl(engine, platform, arch, version) {
         return `${baseUrl}/${v}/zeroclaw-aarch64-unknown-linux-gnu.tar.gz`;
       } else {
         return `${baseUrl}/${v}/zeroclaw-x86_64-unknown-linux-gnu.tar.gz`;
-      }
-    }
-    return null;
-  }
-  
-  if (engine === 'codex') {
-    const baseUrl = 'https://github.com/openai/codex/releases/download';
-    const v = version || CODEX_VERSION;
-    
-    if (platform === 'darwin') {
-      if (arch === 'arm64') {
-        return `${baseUrl}/${v}/codex-aarch64-apple-darwin.tar.gz`;
-      } else {
-        return `${baseUrl}/${v}/codex-npm-darwin-x64-${v.replace('rust-v', '')}.tgz`;
-      }
-    } else if (platform === 'win32') {
-      if (arch === 'arm64') {
-        return `${baseUrl}/${v}/codex-aarch64-pc-windows-msvc.exe.zip`;
-      } else {
-        return `${baseUrl}/${v}/codex-npm-win32-x64-${v.replace('rust-v', '')}.tgz`;
-      }
-    } else if (platform === 'linux') {
-      if (arch === 'arm64') {
-        return `${baseUrl}/${v}/codex-aarch64-unknown-linux-musl.tar.gz`;
-      } else {
-        return `${baseUrl}/${v}/codex-npm-linux-x64-${v.replace('rust-v', '')}.tgz`;
       }
     }
     return null;
@@ -132,13 +102,6 @@ function getBinaryName(engine, platform) {
       return 'zeroclaw.exe';
     }
     return 'zeroclaw';
-  }
-  
-  if (engine === 'codex') {
-    if (platform === 'win32') {
-      return 'codex.exe';
-    }
-    return 'codex';
   }
   
   if (platform === 'win32') {
@@ -243,48 +206,6 @@ async function extractArchive(archivePath, destDir, platform, engine) {
           file: archivePath,
           cwd: destDir
         });
-      } else if (engine === 'codex' && archivePath.endsWith('.tgz')) {
-        const tempExtractDir = destDir + '-temp';
-        if (!fs.existsSync(tempExtractDir)) {
-          fs.mkdirSync(tempExtractDir, { recursive: true });
-        }
-        await tar.x({
-          file: archivePath,
-          cwd: tempExtractDir
-        });
-        const packageDir = path.join(tempExtractDir, 'package');
-        if (fs.existsSync(packageDir)) {
-          const binDir = path.join(packageDir, 'bin');
-          if (fs.existsSync(binDir)) {
-            const files = fs.readdirSync(binDir);
-            for (const file of files) {
-              const srcPath = path.join(binDir, file);
-              const destPath = path.join(destDir, file);
-              fs.copyFileSync(srcPath, destPath);
-            }
-          }
-          const codexPath = path.join(packageDir, 'codex');
-          if (fs.existsSync(codexPath)) {
-            fs.copyFileSync(codexPath, path.join(destDir, 'codex'));
-          }
-        }
-        fs.rmSync(tempExtractDir, { recursive: true });
-      } else if (engine === 'codex') {
-        await tar.x({
-          file: archivePath,
-          cwd: destDir
-        });
-        const files = fs.readdirSync(destDir);
-        for (const file of files) {
-          if (file.startsWith('codex-') && !file.includes('.tar')) {
-            const srcPath = path.join(destDir, file);
-            const destPath = path.join(destDir, 'codex');
-            if (fs.statSync(srcPath).isFile()) {
-              fs.renameSync(srcPath, destPath);
-            }
-            break;
-          }
-        }
       } else {
         await tar.x({
           file: archivePath,
@@ -308,30 +229,37 @@ async function extractArchive(archivePath, destDir, platform, engine) {
   }
 }
 
-async function downloadEngine(engine, platform, arch, version, onProgress) {
-  if (engine !== 'llama' && engine !== 'zeroclaw' && engine !== 'codex') {
+async function downloadEngine(engine, platform, arch, version, onProgress, onLog) {
+  if (engine !== 'llama' && engine !== 'zeroclaw') {
     throw new Error(`Unknown engine: ${engine}`);
   }
   
-  const defaultVersion = engine === 'zeroclaw' ? ZEROCLAW_VERSION : (engine === 'codex' ? CODEX_VERSION : LLAMA_VERSION);
+  const log = (message, level = 'info') => {
+    console.log(message);
+    if (onLog) {
+      onLog({ message, level, timestamp: new Date().toISOString() });
+    }
+  };
+  
+  const engineDir = path.join(__dirname, '..', 'engine-binaries', engine, platform);
+  const binaryName = getBinaryName(engine, platform);
+  const binaryPath = path.join(engineDir, binaryName);
+  
+  const defaultVersion = engine === 'zeroclaw' ? ZEROCLAW_VERSION : LLAMA_VERSION;
   const targetVersion = version || defaultVersion;
   const url = getDownloadUrl(engine, platform, arch, targetVersion);
   if (!url) {
     throw new Error(`Unsupported platform: ${platform} ${arch}`);
   }
   
-  const engineDir = path.join(__dirname, '..', 'engine-binaries', engine, platform);
-  const binaryName = getBinaryName(engine, platform);
-  const binaryPath = path.join(engineDir, binaryName);
-  
   const currentVersion = getCurrentVersion(engineDir);
   if (currentVersion === targetVersion && fs.existsSync(binaryPath)) {
-    console.log(`${engine} ${targetVersion} already installed at ${binaryPath}`);
+    log(`✓ ${engine} ${targetVersion} already installed at ${binaryPath}`, 'success');
     return { path: binaryPath, version: targetVersion, alreadyInstalled: true };
   }
   
-  console.log(`Downloading ${engine} ${targetVersion} for ${platform} ${arch}...`);
-  console.log(`URL: ${url}`);
+  log(`🚀 Downloading ${engine} ${targetVersion} for ${platform} ${arch}...`, 'info');
+  log(`🔗 URL: ${url}`, 'info');
   
   let tempExt = 'tar.gz';
   if (url.endsWith('.tgz')) {
@@ -347,17 +275,20 @@ async function downloadEngine(engine, platform, arch, version, onProgress) {
   }
   
   try {
+    log('⬇️ Starting download...', 'info');
+    const startTime = Date.now();
+    
     await downloadFile(url, tempFile, (downloaded, total) => {
       if (onProgress) {
         onProgress(downloaded, total);
-      } else {
-        const percent = ((downloaded / total) * 100).toFixed(1);
-        process.stdout.write(`\rDownloading: ${percent}% (${(downloaded / 1024 / 1024).toFixed(1)} MB / ${(total / 1024 / 1024).toFixed(1)} MB)`);
       }
     }, existingSize);
-    console.log('\n');
     
-    console.log('Extracting...');
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const sizeMB = (fs.statSync(tempFile).size / 1024 / 1024).toFixed(1);
+    log(`✅ Download complete: ${sizeMB} MB in ${elapsed}s`, 'success');
+    
+    log('📦 Extracting...', 'info');
     await extractArchive(tempFile, engineDir, platform, engine);
     
     fs.unlinkSync(tempFile);
@@ -368,12 +299,13 @@ async function downloadEngine(engine, platform, arch, version, onProgress) {
     
     saveVersion(engineDir, targetVersion);
     
-    console.log(`${engine} ${targetVersion} installed successfully at ${binaryPath}`);
+    log(`✅ ${engine} ${targetVersion} installed successfully at ${binaryPath}`, 'success');
     return { path: binaryPath, version: targetVersion, alreadyInstalled: false };
   } catch (error) {
     if (fs.existsSync(tempFile)) {
-      // Keep temp file for resume
+      fs.unlinkSync(tempFile);
     }
+    log(`❌ Download failed: ${error.message}`, 'error');
     throw error;
   }
 }
@@ -423,7 +355,8 @@ module.exports = {
   checkEngine, 
   checkForUpdate,
   getLatestVersion,
-  getCurrentVersion
+  getCurrentVersion,
+  getBinaryName
 };
 
 if (require.main === module) {
@@ -436,7 +369,6 @@ if (require.main === module) {
     console.log('Checking engines...');
     checkEngine('llama', platform, arch);
     checkEngine('zeroclaw', platform, arch);
-    checkEngine('codex', platform, arch);
   } else if (command === 'update') {
     const engine = args[1] || 'llama';
     const platform = args[2] || process.platform;
@@ -460,8 +392,7 @@ if (require.main === module) {
     console.log('Downloading all engines...');
     Promise.all([
       downloadEngine('llama', platform, arch),
-      downloadEngine('zeroclaw', platform, arch),
-      downloadEngine('codex', platform, arch)
+      downloadEngine('zeroclaw', platform, arch)
     ]).then(() => {
       console.log('All engines downloaded successfully');
     }).catch(err => {

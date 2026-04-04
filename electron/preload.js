@@ -33,15 +33,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   zeroclawDoctor: () => ipcRenderer.invoke('zeroclaw-doctor'),
   zeroclawStatus: () => ipcRenderer.invoke('zeroclaw-status'),
   
-  // Codex
-  startCodex: (config) => ipcRenderer.invoke('start-codex', config),
-  stopCodex: () => ipcRenderer.invoke('stop-codex'),
-  getCodexStatus: () => ipcRenderer.invoke('get-codex-status'),
-  saveCodexConfig: (config) => ipcRenderer.invoke('save-codex-config', config),
-  getCodexConfig: () => ipcRenderer.invoke('get-codex-config'),
-  codexDoctor: () => ipcRenderer.invoke('codex-doctor'),
-  codexStatus: () => ipcRenderer.invoke('codex-status'),
-  
   // Model Pool
   startModelPool: (config) => ipcRenderer.invoke('start-model-pool', config),
   generateModelConfig: () => ipcRenderer.invoke('generate-model-config'),
@@ -80,11 +71,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('engine-download-progress', handler);
     return () => ipcRenderer.removeListener('engine-download-progress', handler);
   },
+  onEngineDownloadLog: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('engine-download-log', handler);
+    return () => ipcRenderer.removeListener('engine-download-log', handler);
+  },
   removeDownloadListeners: () => {
     ipcRenderer.removeAllListeners('download-progress');
     ipcRenderer.removeAllListeners('download-redirect');
     ipcRenderer.removeAllListeners('engine-log');
     ipcRenderer.removeAllListeners('engine-download-progress');
+    ipcRenderer.removeAllListeners('engine-download-log');
   },
   
   // App Config persistence
@@ -100,5 +97,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (event, data) => callback(data);
     ipcRenderer.on('ssh-command-output', handler);
     return () => ipcRenderer.removeListener('ssh-command-output', handler);
-  }
+  },
+  
+  // Remote Service Management
+  installRemoteService: (sshConfig, serviceConfig) => ipcRenderer.invoke('install-remote-service', { sshConfig, serviceConfig }),
+  getRemoteServiceStatus: (sshConfig) => ipcRenderer.invoke('get-remote-service-status', { sshConfig }),
+  restartRemoteService: (sshConfig) => ipcRenderer.invoke('restart-remote-service', { sshConfig }),
+  uninstallRemoteService: (sshConfig) => ipcRenderer.invoke('uninstall-remote-service', { sshConfig })
 });

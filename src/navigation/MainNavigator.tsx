@@ -6,7 +6,6 @@ import { ConversationsScreen } from '../screens/ConversationsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ModelsScreen } from '../screens/ModelsScreen';
 import { ZeroclawScreen } from '../screens/ZeroclawScreen';
-import { CodexScreen } from '../screens/CodexScreen';
 import { colors, typography } from '../theme';
 
 const Tab = createBottomTabNavigator();
@@ -19,7 +18,6 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
     Chat: '💬',
     Models: '📦',
     Zeroclaw: '🌐',
-    Codex: '🤖',
     Cloud: '☁️',
   };
 
@@ -71,11 +69,6 @@ export function MainNavigator() {
         name="Zeroclaw"
         component={ZeroclawScreen}
         options={{ title: 'zeroclaw' }}
-      />
-      <Tab.Screen
-        name="Codex"
-        component={CodexScreen}
-        options={{ title: 'codex' }}
       />
       <Tab.Screen
         name="Cloud"

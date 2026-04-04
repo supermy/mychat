@@ -62,7 +62,7 @@ typecheck: ## TypeScript 类型检查
 ci: lint typecheck test ## CI 流程: 代码检查 + 类型检查 + 测试
 	@echo "✅ CI 检查完成"
 
-engine-download: ## 下载所有引擎 (llama, zeroclaw, codex)
+engine-download: ## 下载所有引擎 (llama, zeroclaw)
 	@echo "⬇️ 下载引擎..."
 	$(NPM) run engine:download
 
@@ -74,7 +74,6 @@ engine-update: ## 更新引擎到最新版本
 	@echo "🔄 更新引擎..."
 	node scripts/download-engines.js update llama
 	node scripts/download-engines.js update zeroclaw
-	node scripts/download-engines.js update codex
 
 model-download: ## 下载默认模型
 	@echo "⬇️ 下载默认模型..."

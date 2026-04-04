@@ -12,7 +12,6 @@ import { ConversationsScreen } from '../screens/ConversationsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ModelsScreen } from '../screens/ModelsScreen';
 import { ZeroclawScreen } from '../screens/ZeroclawScreen';
-import { CodexScreen } from '../screens/CodexScreen';
 import { MainNavigator } from './MainNavigator';
 import { colors, typography, spacing } from '../theme';
 import { useResponsive } from '../utils/responsive';
@@ -20,7 +19,7 @@ import { useChat } from '../context/ChatContext';
 
 const Stack = createNativeStackNavigator();
 
-type TabType = 'chat' | 'models' | 'zeroclaw' | 'codex' | 'cloud';
+type TabType = 'chat' | 'models' | 'zeroclaw' | 'cloud';
 
 function DesktopLayout() {
   const colorScheme = useColorScheme();
@@ -35,8 +34,6 @@ function DesktopLayout() {
         return <ModelsScreen />;
       case 'zeroclaw':
         return <ZeroclawScreen />;
-      case 'codex':
-        return <CodexScreen />;
       case 'cloud':
         return <SettingsScreen />;
       default:
@@ -117,16 +114,6 @@ function DesktopLayout() {
           >
             <Text style={styles.footerIcon}>🌐</Text>
             <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>zeroclaw</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.footerBtn,
-              activeTab === 'codex' && { backgroundColor: theme.background }
-            ]}
-            onPress={() => setActiveTab('codex')}
-          >
-            <Text style={styles.footerIcon}>🤖</Text>
-            <Text style={[styles.footerLabel, { color: theme.textSecondary }]}>codex</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[

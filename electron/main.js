@@ -1,15 +1,29 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 
 let mainWindow;
 let engineProcess = null;
 let enginePort = 8080;
 let currentEngine = null;
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const isDev = process.env.NODE_ENV === 'development' || (process.env.NODE_ENV !== 'production' && !app.isPackaged);
+
+function findSystemBinary(binaryName) {
+  try {
+    if (process.platform === 'win32') {
+      const result = execSync(`where ${binaryName} 2>nul`, { encoding: 'utf-8' });
+      return result.trim().split('\n')[0];
+    } else {
+      const result = execSync(`which ${binaryName} 2>/dev/null`, { encoding: 'utf-8' });
+      return result.trim();
+    }
+  } catch (e) {
+    return null;
+  }
+}
 
 function getEngineBinaryPath(engine) {
   const platform = process.platform;
@@ -27,12 +41,6 @@ function getEngineBinaryPath(engine) {
       binaryName = 'zeroclaw.exe';
     } else {
       binaryName = 'zeroclaw';
-    }
-  } else if (engine === 'codex') {
-    if (platform === 'win32') {
-      binaryName = 'codex.exe';
-    } else {
-      binaryName = 'codex';
     }
   } else {
     return null;
@@ -236,6 +244,30 @@ function sendLog(message, type = 'info') {
   }
 }
 
+function parseEngineLogType(message, defaultType = 'info') {
+  const lowerMsg = message.toLowerCase();
+  
+  if (lowerMsg.includes('error') && !lowerMsg.includes('0 error') && !lowerMsg.includes('no error')) {
+    if (lowerMsg.includes('failed') || lowerMsg.includes('cannot') || lowerMsg.includes('unable') || lowerMsg.includes('fatal')) {
+      return 'error';
+    }
+  }
+  
+  if (lowerMsg.includes('warning') || lowerMsg.includes('warn:')) {
+    return 'warning';
+  }
+  
+  if (lowerMsg.includes('success') || lowerMsg.includes('loaded') || lowerMsg.includes('listening') || lowerMsg.includes('started')) {
+    return 'success';
+  }
+  
+  if (lowerMsg.includes('error]') || lowerMsg.match(/^\s*\[error\]/i)) {
+    return 'info';
+  }
+  
+  return defaultType;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -262,7 +294,16 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:8081');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    const distPath = path.join(__dirname, '..', 'dist');
+    const htmlPath = path.join(distPath, 'index.html');
+    const fixedHtmlPath = path.join(distPath, 'index-fixed.html');
+    
+    let html = fs.readFileSync(htmlPath, 'utf-8');
+    html = html.replace(/src="\/_expo\//g, 'src="_expo/');
+    html = html.replace(/href="\/favicon/g, 'href="favicon');
+    
+    fs.writeFileSync(fixedHtmlPath, html);
+    mainWindow.loadFile(fixedHtmlPath);
   }
 }
 
@@ -354,8 +395,16 @@ function startEngine(engine, config) {
 
     engineProcess.stderr.on('data', (data) => {
       const output = data.toString();
-      console.error(`[${engine} error]`, output);
-      sendLog(output.trim(), 'stderr');
+      console.error(`[${engine} stderr]`, output);
+      const logType = parseEngineLogType(output, 'info');
+      sendLog(output.trim(), logType);
+      
+      if (!resolved && (output.includes('server is listening') || output.includes('HTTP server listening') || output.includes('Server started'))) {
+        resolved = true;
+        enginePort = actualPort;
+        sendLog('引擎启动成功!', 'success');
+        resolve({ success: true, port: actualPort, engine });
+      }
     });
 
     engineProcess.on('error', (err) => {
@@ -489,8 +538,15 @@ function startModelPool(config) {
 
     engineProcess.stderr.on('data', (data) => {
       const output = data.toString();
-      console.error('[llama-pool error]', output);
-      sendLog(output.trim(), 'stderr');
+      console.error('[llama-pool stderr]', output);
+      const logType = parseEngineLogType(output, 'info');
+      sendLog(output.trim(), logType);
+      
+      if (!resolved && (output.includes('server is listening') || output.includes('router server is listening'))) {
+        resolved = true;
+        sendLog('模型池启动成功!', 'success');
+        resolve({ success: true, port: actualPort, engine: 'llama-pool' });
+      }
     });
 
     engineProcess.on('error', (err) => {
@@ -592,8 +648,9 @@ ipcMain.handle('get-system-info', () => {
 });
 
 ipcMain.handle('check-engine-compatibility', async (event, engine) => {
-  const binaryPath = getEngineBinaryPath(engine);
   const systemInfo = getSystemInfo();
+  
+  const binaryPath = getEngineBinaryPath(engine);
   
   if (!binaryPath || !fs.existsSync(binaryPath)) {
     return {
@@ -682,15 +739,24 @@ ipcMain.handle('check-engine-update', async (event, engine) => {
 ipcMain.handle('download-engine-update', async (event, { engine, version }) => {
   const { downloadEngine } = require('../scripts/download-engines.js');
   
-  return downloadEngine(engine, process.platform, process.arch, version, (downloaded, total) => {
-    event.sender.send('engine-download-progress', {
-      engine,
-      version,
-      downloaded,
-      total,
-      progress: total ? (downloaded / total * 100).toFixed(1) : 0
-    });
-  });
+  return downloadEngine(engine, process.platform, process.arch, version, 
+    (downloaded, total) => {
+      event.sender.send('engine-download-progress', {
+        engine,
+        version,
+        downloaded,
+        total,
+        progress: total ? (downloaded / total * 100).toFixed(1) : 0
+      });
+    },
+    (logEntry) => {
+      event.sender.send('engine-download-log', {
+        engine,
+        version,
+        ...logEntry
+      });
+    }
+  );
 });
 
 ipcMain.handle('start-engine', async (event, { engine, config }) => {
@@ -1484,13 +1550,560 @@ ipcMain.handle('execute-ssh-command', async (event, { config, command }) => {
   return result;
 });
 
+ipcMain.handle('install-remote-service', async (event, { sshConfig, serviceConfig }) => {
+  const { Client } = require('ssh2');
+  
+  const result = {
+    success: false,
+    message: '',
+    output: ''
+  };
+  
+  const conn = new Client();
+  
+  try {
+    await new Promise((resolve, reject) => {
+      const connConfig = {
+        host: sshConfig.host,
+        port: sshConfig.port || 22,
+        username: sshConfig.username,
+        readyTimeout: 30000
+      };
+      
+      if (sshConfig.useKey && sshConfig.keyPath) {
+        const keyPath = sshConfig.keyPath.replace('~', process.env.HOME);
+        try {
+          connConfig.privateKey = fs.readFileSync(keyPath);
+        } catch (e) {
+          reject(new Error(`无法读取密钥文件: ${e.message}`));
+          return;
+        }
+      } else if (sshConfig.password) {
+        connConfig.password = sshConfig.password;
+      } else {
+        reject(new Error('请提供密码或密钥路径'));
+        return;
+      }
+      
+      conn.on('ready', () => resolve());
+      conn.on('error', reject);
+      conn.connect(connConfig);
+    });
+    
+    const execCmd = (cmd) => {
+      return new Promise((resolve) => {
+        conn.exec(cmd, (err, stream) => {
+          if (err) {
+            resolve({ success: false, output: err.message });
+            return;
+          }
+          
+          let output = '';
+          stream.on('data', (data) => { output += data.toString(); });
+          stream.stderr.on('data', (data) => { output += data.toString(); });
+          stream.on('close', (code) => {
+            resolve({ success: code === 0, output });
+          });
+        });
+      });
+    };
+    
+    const homeDir = serviceConfig.homeDir || '~';
+    const enginePath = `${homeDir}/.mychat/engines/llama-server`;
+    const modelsDir = serviceConfig.modelsDir || `${homeDir}/.mychat/models/gguf`;
+    const modelsPreset = serviceConfig.modelsPreset || `${homeDir}/.mychat/gguf/model-config.ini`;
+    const logDir = `${homeDir}/.mychat/logs`;
+    const scriptPath = `${homeDir}/.mychat/scripts/start-model-pool.sh`;
+    const port = serviceConfig.port || 8080;
+    const maxModels = serviceConfig.maxModels || 2;
+    const host = serviceConfig.host || '0.0.0.0';
+    const contextSize = serviceConfig.contextSize || 8192;
+    
+    const osCheck = await execCmd('uname -s');
+    const isLinux = osCheck.output.trim().toLowerCase() === 'linux';
+    const isDarwin = osCheck.output.trim().toLowerCase() === 'darwin';
+    
+    if (!isLinux && !isDarwin) {
+      result.message = '仅支持 Linux 和 macOS 系统';
+      conn.end();
+      return result;
+    }
+    
+    await execCmd(`mkdir -p ${logDir} ${homeDir}/.mychat/scripts`);
+    
+    const startScript = `#!/bin/bash
+# MyChat Model Pool Service
+export PATH="/usr/local/bin:$PATH"
+
+LOG_FILE="${logDir}/model-pool-service.log"
+CONFIG_PATH="${modelsPreset}"
+MODELS_DIR="${modelsDir}"
+BINARY_PATH="${enginePath}"
+PORT="${port}"
+MAX_MODELS="${maxModels}"
+HOST="${host}"
+CTX_SIZE="${contextSize}"
+
+echo "$(date): Starting Model Pool Service" >> "$LOG_FILE"
+echo "$(date): Config: $CONFIG_PATH" >> "$LOG_FILE"
+echo "$(date): Models Dir: $MODELS_DIR" >> "$LOG_FILE"
+echo "$(date): Port: $PORT" >> "$LOG_FILE"
+
+if [ -f "$CONFIG_PATH" ]; then
+  PRESET_ARG="--models-preset $CONFIG_PATH"
+else
+  PRESET_ARG=""
+fi
+
+"$BINARY_PATH" \\
+  $PRESET_ARG \\
+  --models-dir "$MODELS_DIR" \\
+  --models-max "$MAX_MODELS" \\
+  --ctx-size "$CTX_SIZE" \\
+  --jinja \\
+  --host "$HOST" \\
+  --port "$PORT" \\
+  --log-file "${logDir}/llama_server.log" \\
+  >> "$LOG_FILE" 2>&1
+`;
+    
+    const writeScript = await execCmd(`cat > ${scriptPath} << 'EOFSCRIPT'
+${startScript}
+EOFSCRIPT
+chmod +x ${scriptPath}`);
+    
+    if (!writeScript.success) {
+      result.message = '创建启动脚本失败';
+      result.output = writeScript.output;
+      conn.end();
+      return result;
+    }
+    
+    if (isLinux) {
+      const serviceName = 'mychat-modelpool';
+      const servicePath = '/etc/systemd/system/mychat-modelpool.service';
+      
+      const systemdService = `[Unit]
+Description=MyChat Model Pool Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash ${scriptPath}
+Restart=on-failure
+RestartSec=10
+User=${sshConfig.username}
+WorkingDirectory=${homeDir}/.mychat
+
+[Install]
+WantedBy=multi-user.target
+`;
+      
+      const writeService = await execCmd(`echo '${systemdService.replace(/'/g, "'\\''")}' | sudo tee ${servicePath}`);
+      
+      if (!writeService.success) {
+        result.message = '创建 systemd 服务文件失败，可能需要 sudo 权限';
+        result.output = writeService.output;
+        result.success = true;
+        result.message = '启动脚本已创建，请手动创建 systemd 服务';
+        conn.end();
+        return result;
+      }
+      
+      await execCmd('sudo systemctl daemon-reload');
+      await execCmd(`sudo systemctl enable ${serviceName}`);
+      await execCmd(`sudo systemctl start ${serviceName}`);
+      
+      result.success = true;
+      result.message = 'systemd 服务已安装并启动';
+      
+    } else if (isDarwin) {
+      const plistName = 'com.mychat.modelpool';
+      const plistPath = `${homeDir}/Library/LaunchAgents/${plistName}.plist`;
+      
+      const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${plistName}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>${scriptPath}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>${logDir}/model-pool-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>${logDir}/model-pool-stderr.log</string>
+    <key>WorkingDirectory</key>
+    <string>${homeDir}/.mychat</string>
+</dict>
+</plist>
+`;
+      
+      const writePlist = await execCmd(`cat > ${plistPath} << 'EOFPLIST'
+${plistContent}
+EOFPLIST`);
+      
+      if (!writePlist.success) {
+        result.message = '创建 launchd plist 文件失败';
+        result.output = writePlist.output;
+        conn.end();
+        return result;
+      }
+      
+      await execCmd(`launchctl load ${plistPath}`);
+      
+      result.success = true;
+      result.message = 'launchd 服务已安装并启动';
+    }
+    
+  } catch (error) {
+    result.message = error.message;
+  } finally {
+    conn.end();
+  }
+  
+  return result;
+});
+
+ipcMain.handle('get-remote-service-status', async (event, { sshConfig }) => {
+  const { Client } = require('ssh2');
+  
+  const result = {
+    success: false,
+    installed: false,
+    running: false,
+    enabled: false,
+    pid: null,
+    port: null,
+    uptime: null,
+    message: ''
+  };
+  
+  const conn = new Client();
+  
+  try {
+    await new Promise((resolve, reject) => {
+      const connConfig = {
+        host: sshConfig.host,
+        port: sshConfig.port || 22,
+        username: sshConfig.username,
+        readyTimeout: 15000
+      };
+      
+      if (sshConfig.useKey && sshConfig.keyPath) {
+        const keyPath = sshConfig.keyPath.replace('~', process.env.HOME);
+        connConfig.privateKey = fs.readFileSync(keyPath);
+      } else if (sshConfig.password) {
+        connConfig.password = sshConfig.password;
+      } else {
+        reject(new Error('请提供密码或密钥路径'));
+        return;
+      }
+      
+      conn.on('ready', () => resolve());
+      conn.on('error', reject);
+      conn.connect(connConfig);
+    });
+    
+    const execCmd = (cmd) => {
+      return new Promise((resolve) => {
+        conn.exec(cmd, (err, stream) => {
+          if (err) {
+            resolve({ success: false, output: err.message });
+            return;
+          }
+          
+          let output = '';
+          stream.on('data', (data) => { output += data.toString(); });
+          stream.stderr.on('data', (data) => { output += data.toString(); });
+          stream.on('close', () => {
+            resolve({ success: true, output });
+          });
+        });
+      });
+    };
+    
+    const osCheck = await execCmd('uname -s');
+    const isLinux = osCheck.output.trim().toLowerCase() === 'linux';
+    const isDarwin = osCheck.output.trim().toLowerCase() === 'darwin';
+    
+    if (isLinux) {
+      const serviceExists = await execCmd('systemctl list-unit-files mychat-modelpool.service 2>/dev/null | grep -q mychat-modelpool && echo YES || echo NO');
+      result.installed = serviceExists.output.includes('YES');
+      
+      if (result.installed) {
+        const enabledCheck = await execCmd('systemctl is-enabled mychat-modelpool 2>/dev/null || echo disabled');
+        result.enabled = enabledCheck.output.trim() === 'enabled';
+        
+        const statusCheck = await execCmd('systemctl is-active mychat-modelpool 2>/dev/null || echo inactive');
+        result.running = statusCheck.output.trim() === 'active';
+        
+        if (result.running) {
+          const pidCheck = await execCmd('systemctl show --property MainPID mychat-modelpool 2>/dev/null | cut -d= -f2');
+          result.pid = pidCheck.output.trim();
+        }
+      }
+    } else if (isDarwin) {
+      const plistCheck = await execCmd('launchctl list com.mychat.modelpool 2>/dev/null && echo YES || echo NO');
+      result.installed = plistCheck.output.includes('YES');
+      result.enabled = result.installed;
+      
+      if (result.installed) {
+        const listOutput = await execCmd('launchctl list | grep com.mychat.modelpool || echo ""');
+        result.running = listOutput.output.includes('com.mychat.modelpool');
+        
+        if (result.running) {
+          const pidMatch = listOutput.output.match(/^\s*(\d+)/m);
+          if (pidMatch) {
+            result.pid = pidMatch[1];
+          }
+        }
+      }
+    }
+    
+    const processCheck = await execCmd('ps aux | grep llama-server | grep -v grep || echo ""');
+    if (processCheck.output.trim()) {
+      const lines = processCheck.output.trim().split('\n');
+      for (const line of lines) {
+        const portMatch = line.match(/--port\s+(\d+)/);
+        if (portMatch) {
+          result.port = parseInt(portMatch[1]);
+          break;
+        }
+      }
+      
+      if (!result.pid) {
+        const pidMatch = processCheck.output.match(/^\S+\s+(\d+)/);
+        if (pidMatch) {
+          result.pid = pidMatch[1];
+        }
+      }
+      
+      if (!result.running) {
+        result.running = true;
+      }
+    }
+    
+    result.success = true;
+    result.message = result.running ? '服务运行中' : (result.installed ? '服务已安装但未运行' : '服务未安装');
+    
+  } catch (error) {
+    result.message = error.message;
+  } finally {
+    conn.end();
+  }
+  
+  return result;
+});
+
+ipcMain.handle('restart-remote-service', async (event, { sshConfig }) => {
+  const { Client } = require('ssh2');
+  
+  const result = {
+    success: false,
+    message: '',
+    output: ''
+  };
+  
+  const conn = new Client();
+  
+  try {
+    await new Promise((resolve, reject) => {
+      const connConfig = {
+        host: sshConfig.host,
+        port: sshConfig.port || 22,
+        username: sshConfig.username,
+        readyTimeout: 15000
+      };
+      
+      if (sshConfig.useKey && sshConfig.keyPath) {
+        const keyPath = sshConfig.keyPath.replace('~', process.env.HOME);
+        connConfig.privateKey = fs.readFileSync(keyPath);
+      } else if (sshConfig.password) {
+        connConfig.password = sshConfig.password;
+      } else {
+        reject(new Error('请提供密码或密钥路径'));
+        return;
+      }
+      
+      conn.on('ready', () => resolve());
+      conn.on('error', reject);
+      conn.connect(connConfig);
+    });
+    
+    const execCmd = (cmd) => {
+      return new Promise((resolve) => {
+        conn.exec(cmd, (err, stream) => {
+          if (err) {
+            resolve({ success: false, output: err.message });
+            return;
+          }
+          
+          let output = '';
+          stream.on('data', (data) => { output += data.toString(); });
+          stream.stderr.on('data', (data) => { output += data.toString(); });
+          stream.on('close', (code) => {
+            resolve({ success: code === 0, output });
+          });
+        });
+      });
+    };
+    
+    const osCheck = await execCmd('uname -s');
+    const isLinux = osCheck.output.trim().toLowerCase() === 'linux';
+    const isDarwin = osCheck.output.trim().toLowerCase() === 'darwin';
+    
+    if (isLinux) {
+      const restartResult = await execCmd('sudo systemctl restart mychat-modelpool 2>&1');
+      if (restartResult.success) {
+        result.success = true;
+        result.message = '服务已重启';
+      } else {
+        result.message = '重启服务失败，可能需要 sudo 权限';
+        result.output = restartResult.output;
+      }
+    } else if (isDarwin) {
+      const homeDir = (await execCmd('echo $HOME')).output.trim();
+      const plistPath = `${homeDir}/Library/LaunchAgents/com.mychat.modelpool.plist`;
+      
+      await execCmd(`launchctl unload ${plistPath} 2>/dev/null || true`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await execCmd(`launchctl load ${plistPath}`);
+      
+      result.success = true;
+      result.message = '服务已重启';
+    } else {
+      result.message = '不支持的操作系统';
+    }
+    
+  } catch (error) {
+    result.message = error.message;
+  } finally {
+    conn.end();
+  }
+  
+  return result;
+});
+
+ipcMain.handle('uninstall-remote-service', async (event, { sshConfig }) => {
+  const { Client } = require('ssh2');
+  
+  const result = {
+    success: false,
+    message: '',
+    output: ''
+  };
+  
+  const conn = new Client();
+  
+  try {
+    await new Promise((resolve, reject) => {
+      const connConfig = {
+        host: sshConfig.host,
+        port: sshConfig.port || 22,
+        username: sshConfig.username,
+        readyTimeout: 15000
+      };
+      
+      if (sshConfig.useKey && sshConfig.keyPath) {
+        const keyPath = sshConfig.keyPath.replace('~', process.env.HOME);
+        connConfig.privateKey = fs.readFileSync(keyPath);
+      } else if (sshConfig.password) {
+        connConfig.password = sshConfig.password;
+      } else {
+        reject(new Error('请提供密码或密钥路径'));
+        return;
+      }
+      
+      conn.on('ready', () => resolve());
+      conn.on('error', reject);
+      conn.connect(connConfig);
+    });
+    
+    const execCmd = (cmd) => {
+      return new Promise((resolve) => {
+        conn.exec(cmd, (err, stream) => {
+          if (err) {
+            resolve({ success: false, output: err.message });
+            return;
+          }
+          
+          let output = '';
+          stream.on('data', (data) => { output += data.toString(); });
+          stream.stderr.on('data', (data) => { output += data.toString(); });
+          stream.on('close', (code) => {
+            resolve({ success: code === 0, output });
+          });
+        });
+      });
+    };
+    
+    const osCheck = await execCmd('uname -s');
+    const isLinux = osCheck.output.trim().toLowerCase() === 'linux';
+    const isDarwin = osCheck.output.trim().toLowerCase() === 'darwin';
+    
+    if (isLinux) {
+      await execCmd('sudo systemctl stop mychat-modelpool 2>/dev/null || true');
+      await execCmd('sudo systemctl disable mychat-modelpool 2>/dev/null || true');
+      await execCmd('sudo rm -f /etc/systemd/system/mychat-modelpool.service');
+      await execCmd('sudo systemctl daemon-reload');
+      
+      result.success = true;
+      result.message = 'systemd 服务已卸载';
+    } else if (isDarwin) {
+      const homeDir = (await execCmd('echo $HOME')).output.trim();
+      const plistPath = `${homeDir}/Library/LaunchAgents/com.mychat.modelpool.plist`;
+      
+      await execCmd(`launchctl unload ${plistPath} 2>/dev/null || true`);
+      await execCmd(`rm -f ${plistPath}`);
+      
+      result.success = true;
+      result.message = 'launchd 服务已卸载';
+    } else {
+      result.message = '不支持的操作系统';
+    }
+    
+    const homeDir = (await execCmd('echo $HOME')).output.trim();
+    await execCmd(`rm -f ${homeDir}/.mychat/scripts/start-model-pool.sh`);
+    
+  } catch (error) {
+    result.message = error.message;
+  } finally {
+    conn.end();
+  }
+  
+  return result;
+});
+
 ipcMain.handle('download-engine', async (event, { engine }) => {
   const { downloadEngine } = require('../scripts/download-engines.js');
   const platform = process.platform;
   const arch = process.arch;
   
   try {
-    const result = await downloadEngine(engine, platform, arch);
+    const result = await downloadEngine(engine, platform, arch, null,
+      (downloaded, total) => {
+        event.sender.send('engine-download-progress', {
+          engine,
+          downloaded,
+          total,
+          progress: total ? (downloaded / total * 100).toFixed(1) : 0
+        });
+      },
+      (logEntry) => {
+        event.sender.send('engine-download-log', {
+          engine,
+          ...logEntry
+        });
+      }
+    );
     return { success: !!result, path: result };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1714,213 +2327,6 @@ ipcMain.handle('save-zeroclaw-config', (event, config) => {
 
 ipcMain.handle('get-zeroclaw-config', () => {
   const configPath = getZeroclawConfigPath();
-  if (fs.existsSync(configPath)) {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  }
-  return null;
-});
-
-let codexProcess = null;
-
-function getCodexConfigPath() {
-  const homeDir = app.getPath('home');
-  return path.join(homeDir, '.mychat', 'codex.json');
-}
-
-async function startCodex(config) {
-  return new Promise((resolve, reject) => {
-    if (codexProcess) {
-      sendLog('正在停止现有 Codex...', 'info');
-      codexProcess.kill();
-      codexProcess = null;
-    }
-
-    const binaryPath = getEngineBinaryPath('codex');
-    
-    if (!binaryPath || !fs.existsSync(binaryPath)) {
-      sendLog('Codex 二进制文件未找到，请先下载', 'warning');
-      resolve({ success: false, message: 'Codex 未安装' });
-      return;
-    }
-
-    if (!config.server || !config.server.port) {
-      sendLog('缺少服务器配置', 'error');
-      resolve({ success: false, message: '缺少服务器配置' });
-      return;
-    }
-
-    sendLog('启动 Codex...', 'info');
-    sendLog(`端口: ${config.server.port}`, 'info');
-    sendLog(`主机: ${config.server.host || '127.0.0.1'}`, 'info');
-
-    const engineDir = path.dirname(binaryPath);
-    const args = ['serve', '--port', String(config.server.port)];
-    
-    if (config.server.host) {
-      args.push('--host', config.server.host);
-    }
-    
-    if (config.provider) {
-      args.push('--provider', config.provider);
-    }
-    
-    if (config.model) {
-      args.push('--model', config.model);
-    }
-    
-    if (config.apiKey) {
-      args.push('--api-key', config.apiKey);
-    }
-    
-    codexProcess = spawn(binaryPath, args, { cwd: engineDir });
-    
-    let resolved = false;
-
-    codexProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      console.log('[codex]', output);
-      sendLog(output.trim(), 'stdout');
-      
-      if (!resolved && (output.includes('Server started') || output.includes('Listening on') || output.includes('server is listening'))) {
-        resolved = true;
-        sendLog('Codex 启动成功!', 'success');
-        resolve({ success: true, message: '启动成功', port: config.server.port });
-      }
-    });
-
-    codexProcess.stderr.on('data', (data) => {
-      const output = data.toString();
-      console.error('[codex error]', output);
-      sendLog(output.trim(), 'stderr');
-    });
-
-    codexProcess.on('error', (err) => {
-      console.error('Failed to start Codex:', err);
-      sendLog(`启动失败: ${err.message}`, 'error');
-      if (!resolved) {
-        resolve({ success: false, message: err.message });
-      }
-    });
-
-    codexProcess.on('close', (code) => {
-      console.log(`Codex exited with code ${code}`);
-      sendLog(`Codex 已退出 (代码: ${code})`, code === 0 ? 'info' : 'warning');
-      codexProcess = null;
-    });
-
-    setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        sendLog('Codex 启动超时，假设已启动', 'warning');
-        resolve({ success: true, message: '启动超时', port: config.server.port });
-      }
-    }, 10000);
-  });
-}
-
-async function stopCodex() {
-  return new Promise((resolve) => {
-    if (codexProcess) {
-      sendLog('正在停止 Codex...', 'info');
-      codexProcess.on('close', () => {
-        sendLog('Codex 已停止', 'info');
-        resolve();
-      });
-      codexProcess.kill();
-      codexProcess = null;
-    } else {
-      resolve();
-    }
-  });
-}
-
-ipcMain.handle('start-codex', async (event, config) => {
-  return startCodex(config);
-});
-
-ipcMain.handle('stop-codex', async () => {
-  return stopCodex();
-});
-
-ipcMain.handle('get-codex-status', () => {
-  return {
-    running: codexProcess !== null,
-    port: codexProcess ? 8080 : 0
-  };
-});
-
-ipcMain.handle('codex-doctor', async () => {
-  return new Promise((resolve) => {
-    const binaryPath = getEngineBinaryPath('codex');
-    
-    if (!binaryPath || !fs.existsSync(binaryPath)) {
-      resolve({ success: false, output: 'Codex 未安装' });
-      return;
-    }
-
-    const engineDir = path.dirname(binaryPath);
-    const doctorProcess = spawn(binaryPath, ['doctor'], { cwd: engineDir });
-    
-    let output = '';
-
-    doctorProcess.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    doctorProcess.stderr.on('data', (data) => {
-      output += data.toString();
-    });
-
-    doctorProcess.on('close', (code) => {
-      resolve({ success: code === 0, output });
-    });
-
-    doctorProcess.on('error', (err) => {
-      resolve({ success: false, output: err.message });
-    });
-  });
-});
-
-ipcMain.handle('codex-status', async () => {
-  return new Promise((resolve) => {
-    const binaryPath = getEngineBinaryPath('codex');
-    
-    if (!binaryPath || !fs.existsSync(binaryPath)) {
-      resolve({ success: false, output: 'Codex 未安装' });
-      return;
-    }
-
-    const engineDir = path.dirname(binaryPath);
-    const statusProcess = spawn(binaryPath, ['status'], { cwd: engineDir });
-    
-    let output = '';
-
-    statusProcess.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-
-    statusProcess.stderr.on('data', (data) => {
-      output += data.toString();
-    });
-
-    statusProcess.on('close', (code) => {
-      resolve({ success: code === 0, output });
-    });
-
-    statusProcess.on('error', (err) => {
-      resolve({ success: false, output: err.message });
-    });
-  });
-});
-
-ipcMain.handle('save-codex-config', (event, config) => {
-  const configPath = getCodexConfigPath();
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  return true;
-});
-
-ipcMain.handle('get-codex-config', () => {
-  const configPath = getCodexConfigPath();
   if (fs.existsSync(configPath)) {
     return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   }

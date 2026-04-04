@@ -1,10 +1,8 @@
 ## 目标：本地clow
 
 1. 支持本地openclaw配置；
-2. 支持本地claudecode配置；
-3. 支持openclaw 调用claudecode;
-4. llama.cpp 提供本地推理引擎池，为openclaw决策与clzudecode编码提供token；
-5. 前段技术实现：
+2. llama.cpp 提供本地推理引擎池，为openclaw决策提供token；
+3. 前段技术实现：
 
    使用 React Native + Expo 开发一个支持 iOS 和 Android 的聊天应用，使用 OpenAI 兼容格式的 API。
    支持桌面，自动适配不同屏幕尺寸。

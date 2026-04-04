@@ -44,15 +44,6 @@ declare global {
       zeroclawDoctor: () => Promise<{ success: boolean; output: string }>;
       zeroclawStatus: () => Promise<{ success: boolean; output: string }>;
       
-      // Codex
-      startCodex: (config: any) => Promise<{ port: number }>;
-      stopCodex: () => Promise<void>;
-      getCodexStatus: () => Promise<{ running: boolean; port: number }>;
-      saveCodexConfig: (config: any) => Promise<void>;
-      getCodexConfig: () => Promise<any>;
-      codexDoctor: () => Promise<{ success: boolean; output: string }>;
-      codexStatus: () => Promise<{ success: boolean; output: string }>;
-      
       // Model Pool
       startModelPool: (config: ModelPoolConfig) => Promise<{ success: boolean; port: number; engine?: string; message?: string }>;
       generateModelConfig: () => Promise<{ success: boolean; output?: string; message?: string }>;
@@ -75,6 +66,7 @@ declare global {
       onDownloadRedirect: (callback: (data: { url: string }) => void) => () => void;
       onEngineLog: (callback: (data: { message: string; type: string; timestamp: number }) => void) => () => void;
       onEngineDownloadProgress: (callback: (data: { engine: string; version: string; downloaded: number; total: number; progress: string }) => void) => () => void;
+      onEngineDownloadLog: (callback: (data: { engine: string; version?: string; message: string; level: string; timestamp: string }) => void) => () => void;
       removeDownloadListeners: () => void;
       
       // App Config persistence
@@ -104,6 +96,48 @@ declare global {
         exitCode?: number;
       }>;
       onSSHCommandOutput: (callback: (data: { type: 'stdout' | 'stderr'; data: string }) => void) => () => void;
+      
+      // Remote Service Management
+      installRemoteService: (sshConfig: SSHConfig, serviceConfig: RemoteServiceConfig) => Promise<RemoteServiceResult>;
+      getRemoteServiceStatus: (sshConfig: SSHConfig) => Promise<RemoteServiceStatus>;
+      restartRemoteService: (sshConfig: SSHConfig) => Promise<RemoteServiceResult>;
+      uninstallRemoteService: (sshConfig: SSHConfig) => Promise<RemoteServiceResult>;
     };
   }
+}
+
+interface SSHConfig {
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  keyPath?: string;
+  useKey: boolean;
+}
+
+interface RemoteServiceConfig {
+  homeDir?: string;
+  modelsDir?: string;
+  modelsPreset?: string;
+  port?: number;
+  maxModels?: number;
+  host?: string;
+  contextSize?: number;
+}
+
+interface RemoteServiceResult {
+  success: boolean;
+  message: string;
+  output?: string;
+}
+
+interface RemoteServiceStatus {
+  success: boolean;
+  installed: boolean;
+  running: boolean;
+  enabled: boolean;
+  pid: string | null;
+  port: number | null;
+  uptime: string | null;
+  message: string;
 }

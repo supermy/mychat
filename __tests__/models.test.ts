@@ -149,8 +149,9 @@ describe('Models Service', () => {
         ...AVAILABLE_MODELS[0],
         files: [
           { name: 'test.Q4_K_M.gguf', quantization: 'Q4_K_M', size: 1024 * 1024 * 1024, url: '' },
-        { name: 'test.Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 1024 * 1024 * 1024, url: '' },
-      ];
+          { name: 'test.Q4_K_XL.gguf', quantization: 'Q4_K_XL', size: 1024 * 1024 * 1024, url: '' },
+        ],
+      };
       const file = getRecommendedFile(model);
       expect(file.quantization).toBe('Q4_K_M');
     });

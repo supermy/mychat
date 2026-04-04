@@ -165,6 +165,15 @@ export function ModelsScreen() {
   const [sshProbeResult, setSshProbeResult] = useState<SSHProbeResult | null>(null);
   const [remoteModels, setRemoteModels] = useState<Array<{ name: string; size: string; modifiedTime: string; path: string }>>([]);
   const [loadingRemoteModels, setLoadingRemoteModels] = useState(false);
+  const [remoteServiceStatus, setRemoteServiceStatus] = useState<{
+    installed: boolean;
+    running: boolean;
+    enabled: boolean;
+    pid: string | null;
+    port: number | null;
+  } | null>(null);
+  const [loadingServiceStatus, setLoadingServiceStatus] = useState(false);
+  const [serviceOperation, setServiceOperation] = useState<string | null>(null);
 
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
@@ -189,7 +198,16 @@ export function ModelsScreen() {
 
       const unsubscribeEngineLog = api.onEngineLog((data) => {
         const timestamp = new Date(data.timestamp || Date.now()).toLocaleTimeString();
-        const level: PoolLog['level'] = data.type === 'stderr' ? 'error' : 'info';
+        let level: PoolLog['level'] = 'info';
+        if (data.type === 'error' || data.type === 'stderr') {
+          level = 'error';
+        } else if (data.type === 'warning' || data.type === 'warn') {
+          level = 'warn';
+        } else if (data.type === 'success') {
+          level = 'success';
+        } else if (data.type === 'info' || data.type === 'stdout') {
+          level = 'info';
+        }
         setPoolLogs(prev => [...prev, { 
           id: data.timestamp || Date.now(), 
           level, 
@@ -1143,6 +1161,143 @@ export function ModelsScreen() {
     }
   };
 
+  const checkRemoteServiceStatus = async () => {
+    if (!window.electronAPI?.getRemoteServiceStatus || installTarget !== 'ssh') return;
+    
+    setLoadingServiceStatus(true);
+    try {
+      const status = await window.electronAPI.getRemoteServiceStatus({
+        host: sshConfig.host,
+        port: sshConfig.port,
+        username: sshConfig.username,
+        password: sshConfig.password,
+        keyPath: sshConfig.keyPath,
+        useKey: useSSHKey,
+      });
+      
+      setRemoteServiceStatus({
+        installed: status.installed,
+        running: status.running,
+        enabled: status.enabled,
+        pid: status.pid,
+        port: status.port,
+      });
+      
+      addLog('info', `📋 服务状态: ${status.installed ? '已安装' : '未安装'} | ${status.running ? '运行中' : '已停止'}`);
+    } catch (error: any) {
+      addLog('error', `获取服务状态失败: ${error?.message || error}`);
+    } finally {
+      setLoadingServiceStatus(false);
+    }
+  };
+
+  const handleInstallRemoteService = async () => {
+    if (!window.electronAPI?.installRemoteService || installTarget !== 'ssh') return;
+    
+    setServiceOperation('installing');
+    addLog('info', '📦 安装远程服务...');
+    
+    try {
+      const result = await window.electronAPI.installRemoteService(
+        {
+          host: sshConfig.host,
+          port: sshConfig.port,
+          username: sshConfig.username,
+          password: sshConfig.password,
+          keyPath: sshConfig.keyPath,
+          useKey: useSSHKey,
+        },
+        {
+          homeDir: '~',
+          modelsDir: modelPoolConfig.modelsDir,
+          modelsPreset: modelPoolConfig.modelsPreset,
+          port: modelPoolConfig.port,
+          maxModels: modelPoolConfig.maxModels,
+          host: modelPoolConfig.host,
+          contextSize: modelPoolConfig.contextSize,
+        }
+      );
+      
+      if (result.success) {
+        addLog('success', `✅ ${result.message}`);
+        await checkRemoteServiceStatus();
+      } else {
+        addLog('error', `❌ ${result.message}`);
+        if (result.output) {
+          addLog('info', `输出: ${result.output}`);
+        }
+      }
+    } catch (error: any) {
+      addLog('error', `安装服务失败: ${error?.message || error}`);
+    } finally {
+      setServiceOperation(null);
+    }
+  };
+
+  const handleRestartRemoteService = async () => {
+    if (!window.electronAPI?.restartRemoteService || installTarget !== 'ssh') return;
+    
+    setServiceOperation('restarting');
+    addLog('info', '🔄 重启远程服务...');
+    
+    try {
+      const result = await window.electronAPI.restartRemoteService({
+        host: sshConfig.host,
+        port: sshConfig.port,
+        username: sshConfig.username,
+        password: sshConfig.password,
+        keyPath: sshConfig.keyPath,
+        useKey: useSSHKey,
+      });
+      
+      if (result.success) {
+        addLog('success', `✅ ${result.message}`);
+        await checkRemoteServiceStatus();
+      } else {
+        addLog('error', `❌ ${result.message}`);
+        if (result.output) {
+          addLog('info', `输出: ${result.output}`);
+        }
+      }
+    } catch (error: any) {
+      addLog('error', `重启服务失败: ${error?.message || error}`);
+    } finally {
+      setServiceOperation(null);
+    }
+  };
+
+  const handleUninstallRemoteService = async () => {
+    if (!window.electronAPI?.uninstallRemoteService || installTarget !== 'ssh') return;
+    
+    setServiceOperation('uninstalling');
+    addLog('info', '🗑️ 卸载远程服务...');
+    
+    try {
+      const result = await window.electronAPI.uninstallRemoteService({
+        host: sshConfig.host,
+        port: sshConfig.port,
+        username: sshConfig.username,
+        password: sshConfig.password,
+        keyPath: sshConfig.keyPath,
+        useKey: useSSHKey,
+      });
+      
+      if (result.success) {
+        addLog('success', `✅ ${result.message}`);
+        setRemoteServiceStatus(null);
+      } else {
+        addLog('error', `❌ ${result.message}`);
+        if (result.output) {
+          addLog('info', `输出: ${result.output}`);
+        }
+      }
+    } catch (error: any) {
+      addLog('error', `卸载服务失败: ${error?.message || error}`);
+    } finally {
+      setServiceOperation(null);
+    }
+  };
+
   const handleDeleteModel = async (fileName: string) => {
     if (!window.electronAPI) return;
     await window.electronAPI.deleteModel(fileName);
@@ -1200,28 +1355,28 @@ export function ModelsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
         <TouchableOpacity
-          style={[styles.tabButton, mainTab === 'pool' && styles.tabButtonActive]}
+          style={[styles.tab, mainTab === 'pool' && styles.tabActive]}
           onPress={() => setMainTab('pool')}
         >
-          <Text style={[styles.tabButtonText, { color: mainTab === 'pool' ? '#FFFFFF' : '#636E72' }]}>
+          <Text style={[styles.tabText, { color: mainTab === 'pool' ? theme.primary : theme.textSecondary }]}>
             🏊 模型池
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tabButton, mainTab === 'download' && styles.tabButtonActive]}
+          style={[styles.tab, mainTab === 'download' && styles.tabActive]}
           onPress={() => setMainTab('download')}
         >
-          <Text style={[styles.tabButtonText, { color: mainTab === 'download' ? '#FFFFFF' : '#636E72' }]}>
+          <Text style={[styles.tabText, { color: mainTab === 'download' ? theme.primary : theme.textSecondary }]}>
             📥 下载
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tabButton, mainTab === 'config' && styles.tabButtonActive]}
+          style={[styles.tab, mainTab === 'config' && styles.tabActive]}
           onPress={() => setMainTab('config')}
         >
-          <Text style={[styles.tabButtonText, { color: mainTab === 'config' ? '#FFFFFF' : '#636E72' }]}>
+          <Text style={[styles.tabText, { color: mainTab === 'config' ? theme.primary : theme.textSecondary }]}>
             ⚙️ 配置
           </Text>
         </TouchableOpacity>
@@ -1248,6 +1403,100 @@ export function ModelsScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {installTarget === 'ssh' && (
+            <View style={[styles.serviceCard, { backgroundColor: theme.surface }]}>
+              <View style={styles.serviceHeader}>
+                <Text style={[styles.serviceTitle, { color: theme.text }]}>🔧 服务管理</Text>
+                <TouchableOpacity
+                  style={[styles.refreshButton, { backgroundColor: '#6BA3BE' }]}
+                  onPress={checkRemoteServiceStatus}
+                  disabled={loadingServiceStatus}
+                >
+                  {loadingServiceStatus ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.refreshButtonText}>🔄 刷新</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              
+              {remoteServiceStatus ? (
+                <View style={styles.serviceStatusContainer}>
+                  <View style={styles.serviceStatusRow}>
+                    <Text style={[styles.serviceStatusLabel, { color: theme.textSecondary }]}>状态:</Text>
+                    <Text style={[styles.serviceStatusValue, { color: remoteServiceStatus.running ? '#5B8C5A' : '#E76F51' }]}>
+                      {remoteServiceStatus.running ? '✅ 运行中' : '⏹ 已停止'}
+                    </Text>
+                  </View>
+                  <View style={styles.serviceStatusRow}>
+                    <Text style={[styles.serviceStatusLabel, { color: theme.textSecondary }]}>服务:</Text>
+                    <Text style={[styles.serviceStatusValue, { color: remoteServiceStatus.installed ? '#6BA3BE' : '#F4A261' }]}>
+                      {remoteServiceStatus.installed ? '✅ 已安装' : '❌ 未安装'}
+                    </Text>
+                  </View>
+                  {remoteServiceStatus.pid && (
+                    <View style={styles.serviceStatusRow}>
+                      <Text style={[styles.serviceStatusLabel, { color: theme.textSecondary }]}>PID:</Text>
+                      <Text style={[styles.serviceStatusValue, { color: theme.text }]}>{remoteServiceStatus.pid}</Text>
+                    </View>
+                  )}
+                  {remoteServiceStatus.port && (
+                    <View style={styles.serviceStatusRow}>
+                      <Text style={[styles.serviceStatusLabel, { color: theme.textSecondary }]}>端口:</Text>
+                      <Text style={[styles.serviceStatusValue, { color: theme.text }]}>{remoteServiceStatus.port}</Text>
+                    </View>
+                  )}
+                  <View style={styles.serviceButtons}>
+                    {!remoteServiceStatus.installed ? (
+                      <TouchableOpacity
+                        style={[styles.serviceButton, { backgroundColor: '#5B8C5A' }]}
+                        onPress={handleInstallRemoteService}
+                        disabled={!!serviceOperation}
+                      >
+                        {serviceOperation === 'installing' ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Text style={styles.serviceButtonText}>📦 安装服务</Text>
+                        )}
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.serviceButton, { backgroundColor: '#6BA3BE' }]}
+                          onPress={handleRestartRemoteService}
+                          disabled={!!serviceOperation}
+                        >
+                          {serviceOperation === 'restarting' ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={styles.serviceButtonText}>🔄 重启</Text>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.serviceButton, { backgroundColor: '#E76F51' }]}
+                          onPress={handleUninstallRemoteService}
+                          disabled={!!serviceOperation}
+                        >
+                          {serviceOperation === 'uninstalling' ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={styles.serviceButtonText}>🗑️ 卸载</Text>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.serviceHint}>
+                  <Text style={[styles.serviceHintText, { color: theme.textSecondary }]}>
+                    点击"刷新"获取服务状态
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
           <View style={styles.poolControlCard}>
             <View style={styles.poolControlButtons}>
@@ -1359,20 +1608,20 @@ export function ModelsScreen() {
 
       {mainTab === 'download' && (
         <ScrollView style={styles.scrollView}>
-          <View style={styles.subTabContainer}>
+          <View style={[styles.subTabContainer, { backgroundColor: theme.surface }]}>
             <TouchableOpacity
-              style={[styles.subTabButton, downloadTab === 'model' && styles.subTabButtonActive]}
+              style={[styles.subTab, downloadTab === 'model' && styles.subTabActive]}
               onPress={() => setDownloadTab('model')}
             >
-              <Text style={[styles.subTabButtonText, { color: downloadTab === 'model' ? '#FFFFFF' : '#636E72' }]}>
+              <Text style={[styles.subTabText, { color: downloadTab === 'model' ? theme.primary : theme.textSecondary }]}>
                 📦 模型下载
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.subTabButton, downloadTab === 'engine' && styles.subTabButtonActive]}
+              style={[styles.subTab, downloadTab === 'engine' && styles.subTabActive]}
               onPress={() => setDownloadTab('engine')}
             >
-              <Text style={[styles.subTabButtonText, { color: downloadTab === 'engine' ? '#FFFFFF' : '#636E72' }]}>
+              <Text style={[styles.subTabText, { color: downloadTab === 'engine' ? theme.primary : theme.textSecondary }]}>
                 ⚙️ 引擎下载
               </Text>
             </TouchableOpacity>
@@ -2273,58 +2522,40 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F1F3F4',
-    borderRadius: 16,
+    borderRadius: 12,
+    marginBottom: spacing.md,
     padding: spacing.xs,
-    marginBottom: spacing.lg,
   },
-  tabButton: {
+  tab: {
     flex: 1,
     paddingVertical: spacing.md,
-    borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
+    borderRadius: 10,
   },
-  tabButtonActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 3,
+  tabActive: {
+    backgroundColor: 'rgba(91, 140, 90, 0.15)',
   },
-  tabButtonText: {
-    ...typography.body,
+  tabText: {
+    ...typography.caption,
     fontWeight: '600',
-    fontSize: 14,
   },
   subTabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F1F3F4',
     borderRadius: 12,
+    marginBottom: spacing.md,
     padding: spacing.xs,
-    marginBottom: spacing.lg,
   },
-  subTabButton: {
+  subTab: {
     flex: 1,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
+    borderRadius: 8,
   },
-  subTabButtonActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+  subTabActive: {
+    backgroundColor: 'rgba(91, 140, 90, 0.15)',
   },
-  subTabButtonText: {
-    ...typography.body,
+  subTabText: {
+    ...typography.caption,
     fontWeight: '600',
     fontSize: 13,
   },
@@ -2359,6 +2590,83 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontWeight: '600',
     fontSize: 12,
+  },
+  serviceCard: {
+    padding: spacing.lg,
+    borderRadius: 16,
+    marginBottom: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  serviceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  serviceTitle: {
+    ...typography.subtitle,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  refreshButton: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  serviceStatusContainer: {
+    gap: spacing.sm,
+  },
+  serviceStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  serviceStatusLabel: {
+    ...typography.body,
+    fontSize: 13,
+    width: 50,
+  },
+  serviceStatusValue: {
+    ...typography.body,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  serviceButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: '#E9ECEF',
+  },
+  serviceButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  serviceButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  serviceHint: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  serviceHintText: {
+    ...typography.body,
+    fontSize: 13,
   },
   poolControlCard: {
     padding: spacing.lg,
@@ -2924,16 +3232,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.sm,
-  },
-  refreshButton: {
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: 8,
-  },
-  refreshButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 12,
   },
   loadingContainer: {
     flexDirection: 'row',
