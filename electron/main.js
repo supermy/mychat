@@ -42,6 +42,18 @@ function getEngineBinaryPath(engine) {
     } else {
       binaryName = 'zeroclaw';
     }
+    
+    if (platform === 'darwin' && arch === 'x64') {
+      try {
+        const result = execSync('which zeroclaw 2>/dev/null', { encoding: 'utf-8', timeout: 2000 });
+        const systemPath = result.trim();
+        if (systemPath && fs.existsSync(systemPath)) {
+          return systemPath;
+        }
+      } catch (e) {
+        // System zeroclaw not found, use local
+      }
+    }
   } else {
     return null;
   }
@@ -218,6 +230,16 @@ function getSystemInfo() {
 
 function checkEngineCompatibility(enginePath, systemInfo) {
   try {
+    if (enginePath.startsWith('/usr/local/bin/') || enginePath.startsWith('/opt/homebrew/bin/')) {
+      return {
+        compatible: true,
+        engineArch: systemInfo.arch,
+        systemArch: systemInfo.arch,
+        message: '系统安装版本',
+        isSystem: true
+      };
+    }
+    
     const result = execSync(`file "${enginePath}" 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 });
     const engineArch = result.includes('arm64') ? 'arm64' : 
                        result.includes('x86_64') ? 'x64' : 
@@ -231,10 +253,11 @@ function checkEngineCompatibility(enginePath, systemInfo) {
       systemArch,
       message: engineArch !== systemArch ? 
         `引擎架构 (${engineArch}) 与系统架构 (${systemArch}) 不匹配` : 
-        '架构匹配'
+        '架构匹配',
+      isSystem: false
     };
   } catch (e) {
-    return { compatible: true, engineArch: 'unknown', systemArch: systemInfo.arch, message: '无法检测架构' };
+    return { compatible: true, engineArch: 'unknown', systemArch: systemInfo.arch, message: '无法检测架构', isSystem: false };
   }
 }
 
