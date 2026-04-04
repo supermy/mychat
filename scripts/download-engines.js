@@ -28,6 +28,47 @@ function findSystemZeroclaw() {
   return null;
 }
 
+function checkHomebrewInstalled() {
+  try {
+    execSync('which brew 2>/dev/null', { encoding: 'utf-8' });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function installZeroclawViaHomebrew(onLog) {
+  const log = (message, level = 'info') => {
+    console.log(message);
+    if (onLog) {
+      onLog({ message, level, timestamp: new Date().toISOString() });
+    }
+  };
+  
+  if (!checkHomebrewInstalled()) {
+    throw new Error('Homebrew 未安装。请先安装 Homebrew: https://brew.sh');
+  }
+  
+  log('🍺 通过 Homebrew 安装 zeroclaw...', 'info');
+  
+  try {
+    execSync('brew install zeroclaw', { 
+      stdio: 'inherit',
+      encoding: 'utf-8'
+    });
+    
+    const systemZeroclaw = findSystemZeroclaw();
+    if (systemZeroclaw) {
+      log(`✅ zeroclaw ${systemZeroclaw.version} 安装成功`, 'success');
+      return systemZeroclaw;
+    } else {
+      throw new Error('安装成功但无法找到 zeroclaw');
+    }
+  } catch (error) {
+    throw new Error(`Homebrew 安装失败: ${error.message}`);
+  }
+}
+
 async function getLatestVersion(engine) {
   let apiUrl;
   if (engine === 'zeroclaw') {
@@ -277,9 +318,38 @@ async function downloadEngine(engine, platform, arch, version, onProgress, onLog
   const url = getDownloadUrl(engine, platform, arch, targetVersion);
   if (!url) {
     if (engine === 'zeroclaw' && platform === 'darwin' && arch !== 'arm64') {
-      const errorMsg = `x86_64 macOS 需要通过 Homebrew 安装 zeroclaw:\n\n  brew install zeroclaw\n\n安装后重新运行此程序即可自动检测。`;
-      log(errorMsg, 'error');
-      throw new Error(errorMsg);
+      log('⚠️  x86_64 macOS 官方不提供 zeroclaw 二进制', 'warn');
+      
+      if (checkHomebrewInstalled()) {
+        log('🍺 检测到 Homebrew，尝试自动安装...', 'info');
+        try {
+          const installed = await installZeroclawViaHomebrew(onLog);
+          const engineDir = path.join(__dirname, '..', 'engine-binaries', engine, platform);
+          saveVersion(engineDir, installed.version);
+          return { 
+            path: installed.path, 
+            version: installed.version, 
+            alreadyInstalled: false, 
+            system: true,
+            installedViaHomebrew: true 
+          };
+        } catch (error) {
+          log(`❌ ${error.message}`, 'error');
+          throw error;
+        }
+      } else {
+        const errorMsg = `x86_64 macOS 需要通过 Homebrew 安装 zeroclaw:
+
+1. 安装 Homebrew:
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+2. 安装 zeroclaw:
+   brew install zeroclaw
+
+3. 重新运行此程序`;
+        log(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
     }
     throw new Error(`Unsupported platform: ${platform} ${arch}`);
   }
