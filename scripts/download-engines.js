@@ -8,9 +8,25 @@ const AdmZip = require('adm-zip');
 
 const LLAMA_VERSION = 'b8229';
 const ZEROCLAW_VERSION = 'v0.6.8';
-const ZEROCLAW_VERSION_X64 = 'v0.1.7';
 const LLAMA_GITHUB_API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest';
 const ZEROCLAW_GITHUB_API = 'https://api.github.com/repos/zeroclaw-labs/zeroclaw/releases/latest';
+
+function findSystemZeroclaw() {
+  try {
+    const result = execSync('which zeroclaw 2>/dev/null', { encoding: 'utf-8' });
+    const binaryPath = result.trim();
+    if (binaryPath && fs.existsSync(binaryPath)) {
+      const versionResult = execSync('zeroclaw --version 2>/dev/null', { encoding: 'utf-8' });
+      const versionMatch = versionResult.match(/zeroclaw\s+(\d+\.\d+\.\d+)/);
+      if (versionMatch) {
+        return { path: binaryPath, version: 'v' + versionMatch[1] };
+      }
+    }
+  } catch (e) {
+    // zeroclaw not found in system
+  }
+  return null;
+}
 
 async function getLatestVersion(engine) {
   let apiUrl;
@@ -59,20 +75,17 @@ function saveVersion(engineDir, version) {
 function getDownloadUrl(engine, platform, arch, version, assets) {
   if (engine === 'zeroclaw') {
     const baseUrl = 'https://github.com/zeroclaw-labs/zeroclaw/releases/download';
+    const v = version || ZEROCLAW_VERSION;
     
     if (platform === 'darwin') {
       if (arch === 'arm64') {
-        const v = version || ZEROCLAW_VERSION;
         return `${baseUrl}/${v}/zeroclaw-aarch64-apple-darwin.tar.gz`;
       } else {
-        const v = version || ZEROCLAW_VERSION_X64;
         return `${baseUrl}/${v}/zeroclaw-x86_64-apple-darwin.tar.gz`;
       }
     } else if (platform === 'win32') {
-      const v = version || ZEROCLAW_VERSION;
       return `${baseUrl}/${v}/zeroclaw-x86_64-pc-windows-msvc.zip`;
     } else if (platform === 'linux') {
-      const v = version || ZEROCLAW_VERSION;
       if (arch === 'arm64') {
         return `${baseUrl}/${v}/zeroclaw-aarch64-unknown-linux-gnu.tar.gz`;
       } else {
@@ -245,6 +258,16 @@ async function downloadEngine(engine, platform, arch, version, onProgress, onLog
     }
   };
   
+  if (engine === 'zeroclaw') {
+    const systemZeroclaw = findSystemZeroclaw();
+    if (systemZeroclaw) {
+      log(`✓ Found system zeroclaw ${systemZeroclaw.version} at ${systemZeroclaw.path}`, 'success');
+      const engineDir = path.join(__dirname, '..', 'engine-binaries', engine, platform);
+      saveVersion(engineDir, systemZeroclaw.version);
+      return { path: systemZeroclaw.path, version: systemZeroclaw.version, alreadyInstalled: true, system: true };
+    }
+  }
+  
   const engineDir = path.join(__dirname, '..', 'engine-binaries', engine, platform);
   const binaryName = getBinaryName(engine, platform);
   const binaryPath = path.join(engineDir, binaryName);
@@ -335,15 +358,18 @@ async function checkForUpdate(engine, platform, arch) {
   const currentVersion = getCurrentVersion(engineDir);
   
   try {
-    if (engine === 'zeroclaw' && platform === 'darwin' && arch !== 'arm64') {
-      const targetVersion = ZEROCLAW_VERSION_X64;
-      const hasUpdate = !currentVersion || currentVersion !== targetVersion;
-      return {
-        currentVersion,
-        latestVersion: targetVersion,
-        hasUpdate,
-        releaseInfo: { version: targetVersion }
-      };
+    if (engine === 'zeroclaw') {
+      const systemZeroclaw = findSystemZeroclaw();
+      if (systemZeroclaw) {
+        const hasUpdate = !currentVersion || currentVersion !== systemZeroclaw.version;
+        return {
+          currentVersion,
+          latestVersion: systemZeroclaw.version,
+          hasUpdate,
+          systemPath: systemZeroclaw.path,
+          releaseInfo: { version: systemZeroclaw.version }
+        };
+      }
     }
     
     const latest = await getLatestVersion(engine);
