@@ -8,6 +8,7 @@ const AdmZip = require('adm-zip');
 
 const LLAMA_VERSION = 'b8229';
 const ZEROCLAW_VERSION = 'v0.6.8';
+const ZEROCLAW_VERSION_X64 = 'v0.1.7';
 const LLAMA_GITHUB_API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest';
 const ZEROCLAW_GITHUB_API = 'https://api.github.com/repos/zeroclaw-labs/zeroclaw/releases/latest';
 
@@ -58,17 +59,20 @@ function saveVersion(engineDir, version) {
 function getDownloadUrl(engine, platform, arch, version, assets) {
   if (engine === 'zeroclaw') {
     const baseUrl = 'https://github.com/zeroclaw-labs/zeroclaw/releases/download';
-    const v = version || ZEROCLAW_VERSION;
     
     if (platform === 'darwin') {
       if (arch === 'arm64') {
+        const v = version || ZEROCLAW_VERSION;
         return `${baseUrl}/${v}/zeroclaw-aarch64-apple-darwin.tar.gz`;
       } else {
+        const v = version || ZEROCLAW_VERSION_X64;
         return `${baseUrl}/${v}/zeroclaw-x86_64-apple-darwin.tar.gz`;
       }
     } else if (platform === 'win32') {
+      const v = version || ZEROCLAW_VERSION;
       return `${baseUrl}/${v}/zeroclaw-x86_64-pc-windows-msvc.zip`;
     } else if (platform === 'linux') {
+      const v = version || ZEROCLAW_VERSION;
       if (arch === 'arm64') {
         return `${baseUrl}/${v}/zeroclaw-aarch64-unknown-linux-gnu.tar.gz`;
       } else {
@@ -331,6 +335,17 @@ async function checkForUpdate(engine, platform, arch) {
   const currentVersion = getCurrentVersion(engineDir);
   
   try {
+    if (engine === 'zeroclaw' && platform === 'darwin' && arch !== 'arm64') {
+      const targetVersion = ZEROCLAW_VERSION_X64;
+      const hasUpdate = !currentVersion || currentVersion !== targetVersion;
+      return {
+        currentVersion,
+        latestVersion: targetVersion,
+        hasUpdate,
+        releaseInfo: { version: targetVersion }
+      };
+    }
+    
     const latest = await getLatestVersion(engine);
     const hasUpdate = !currentVersion || currentVersion !== latest.version;
     
