@@ -210,7 +210,14 @@ export function ZeroclawScreen() {
       setDetailedSystemInfo(sysInfo);
       setEngineCompatibility(compat);
       if (savedConfig) {
-        setConfig(savedConfig);
+        setConfig({
+          ...DEFAULT_CONFIG,
+          ...savedConfig,
+          server: { ...DEFAULT_CONFIG.server, ...savedConfig.server },
+          llama: { ...DEFAULT_CONFIG.llama, ...savedConfig.llama },
+          channels: { ...DEFAULT_CONFIG.channels, ...savedConfig.channels },
+          providers: { ...DEFAULT_CONFIG.providers, ...savedConfig.providers },
+        });
       }
     } catch (error) {
       console.error('Failed to load data:', error);
